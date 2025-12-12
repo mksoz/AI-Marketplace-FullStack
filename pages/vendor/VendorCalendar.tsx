@@ -128,7 +128,7 @@ const VendorCalendar: React.FC = () => {
          </div>
 
          {/* Calendar Grid */}
-         <div className="bg-white rounded-2xl border border-gray-200 shadow-sm flex-1 flex flex-col overflow-hidden min-h-[600px]">
+         <div className="bg-white rounded-2xl border border-gray-200 shadow-sm flex-1 flex flex-col overflow-hidden">
              
              {/* Week Days Header */}
              <div className="grid grid-cols-7 border-b border-gray-200 bg-gray-50">
@@ -180,6 +180,22 @@ const VendorCalendar: React.FC = () => {
                          </div>
                      );
                  })}
+             </div>
+         </div>
+
+         {/* Legend (Added for consistency with Client View) */}
+         <div className="flex gap-6 justify-center pb-4">
+             <div className="flex items-center gap-2">
+                 <span className="w-3 h-3 rounded-full bg-green-500"></span>
+                 <span className="text-sm text-gray-600">Hitos</span>
+             </div>
+             <div className="flex items-center gap-2">
+                 <span className="w-3 h-3 rounded-full bg-blue-500"></span>
+                 <span className="text-sm text-gray-600">Reuniones</span>
+             </div>
+             <div className="flex items-center gap-2">
+                 <span className="w-3 h-3 rounded-full bg-red-500"></span>
+                 <span className="text-sm text-gray-600">Vencimientos</span>
              </div>
          </div>
       </div>

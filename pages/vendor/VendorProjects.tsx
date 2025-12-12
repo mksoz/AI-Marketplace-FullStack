@@ -25,10 +25,13 @@ const VendorProjects: React.FC = () => {
   const [selectedProject, setSelectedProject] = useState<any>(null);
 
   // File Management State (Homologous to Client)
+  const [fileViewMode, setFileViewMode] = useState<'documents' | 'repository'>('documents');
   const [currentFolder, setCurrentFolder] = useState<Folder | null>(null);
   const [itemToDelete, setItemToDelete] = useState<{type: 'folder'|'file', id: string, name: string} | null>(null);
   const [activeMenuId, setActiveMenuId] = useState<string | null>(null);
   const [isDragging, setIsDragging] = useState(false);
+  const [isSyncing, setIsSyncing] = useState(false);
+  const [isRepoConnected, setIsRepoConnected] = useState(true); // Toggle to simulate connection state
 
   // Search & Filter State for Projects List
   const [isSearchOpen, setIsSearchOpen] = useState(false);
@@ -129,6 +132,11 @@ const VendorProjects: React.FC = () => {
     if (type === 'pdf') return 'picture_as_pdf';
     if (type === 'csv' || type === 'xlsx') return 'table_chart';
     return 'insert_drive_file';
+  };
+
+  const handleSync = () => {
+      setIsSyncing(true);
+      setTimeout(() => setIsSyncing(false), 2000);
   };
 
   useEffect(() => {
@@ -348,7 +356,7 @@ const VendorProjects: React.FC = () => {
       );
   }
 
-  // Project Detail View (Unchanged logic, just keeping structure)
+  // Project Detail View
   return (
     <VendorLayout>
         <div className="space-y-6">
@@ -479,130 +487,246 @@ const VendorProjects: React.FC = () => {
                     </div>
                 )}
 
-                {/* FILE MANAGER SECTION */}
+                {/* FILE MANAGER / GITHUB SYNC SECTION */}
                 {activeTab === 'files' && (
                     <div className="space-y-4 animate-in fade-in duration-300">
-                        {/* Internal Breadcrumbs for Files */}
-                        <div className="flex items-center justify-between bg-white p-3 rounded-xl border border-gray-200">
-                            <div className="flex items-center gap-2">
+                        {/* Sub-navigation for Files */}
+                        <div className="flex items-center justify-between mb-4">
+                            <div className="bg-gray-100 p-1 rounded-xl flex items-center">
                                 <button 
-                                    onClick={() => setCurrentFolder(null)} 
-                                    className={`text-sm font-bold hover:underline flex items-center gap-1 ${!currentFolder ? 'text-gray-900' : 'text-gray-500'}`}
+                                    onClick={() => setFileViewMode('documents')}
+                                    className={`px-4 py-2 rounded-lg text-sm font-bold flex items-center gap-2 transition-all ${fileViewMode === 'documents' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}
                                 >
-                                    <span className="material-symbols-outlined text-lg">folder_open</span> Root
+                                    <span className="material-symbols-outlined text-lg">folder</span> Documentos
                                 </button>
-                                {currentFolder && (
+                                <button 
+                                    onClick={() => setFileViewMode('repository')}
+                                    className={`px-4 py-2 rounded-lg text-sm font-bold flex items-center gap-2 transition-all ${fileViewMode === 'repository' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}
+                                >
+                                    <img src="https://github.githubassets.com/images/modules/logos_page/GitHub-Mark.png" className={`w-4 h-4 ${fileViewMode === 'repository' ? 'opacity-100' : 'opacity-50'}`} alt="GitHub" />
+                                    GitHub Sync
+                                </button>
+                            </div>
+                        </div>
+
+                        {/* GITHUB SYNC VIEW (VENDOR) */}
+                        {fileViewMode === 'repository' && (
+                            <div className="space-y-6">
+                                {!isRepoConnected ? (
+                                    <div className="bg-white border border-gray-200 rounded-xl p-12 text-center">
+                                        <div className="w-20 h-20 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-6">
+                                            <span className="material-symbols-outlined text-4xl text-gray-400">link_off</span>
+                                        </div>
+                                        <h3 className="text-xl font-bold text-gray-900 mb-2">Conectar Repositorio</h3>
+                                        <p className="text-gray-500 max-w-md mx-auto mb-8">Sincroniza tu repositorio de GitHub para dar visibilidad automática al cliente sobre el progreso del código.</p>
+                                        <button 
+                                            onClick={() => setIsRepoConnected(true)}
+                                            className="bg-black text-white px-6 py-3 rounded-xl font-bold hover:bg-gray-800 transition-colors flex items-center gap-2 mx-auto"
+                                        >
+                                            <img src="https://github.githubassets.com/images/modules/logos_page/GitHub-Mark-Light-32px.png" className="w-5 h-5" alt="GitHub" />
+                                            Conectar con GitHub
+                                        </button>
+                                    </div>
+                                ) : (
                                     <>
-                                        <span className="material-symbols-outlined text-gray-300 text-sm">chevron_right</span>
-                                        <span className="text-sm font-bold text-gray-900">{currentFolder.name}</span>
+                                        {/* Repo Control Panel */}
+                                        <div className="bg-gray-900 text-white rounded-2xl p-6 shadow-lg flex flex-col md:flex-row justify-between items-center gap-6">
+                                            <div>
+                                                <div className="flex items-center gap-2 mb-2">
+                                                    <span className="w-2.5 h-2.5 rounded-full bg-green-500 animate-pulse"></span>
+                                                    <span className="text-green-400 text-xs font-bold uppercase tracking-wider">Conectado</span>
+                                                </div>
+                                                <h3 className="text-xl font-mono font-bold flex items-center gap-2">
+                                                    quantum-leap/recommendation-engine
+                                                    <span className="material-symbols-outlined text-gray-500 text-sm">lock</span>
+                                                </h3>
+                                                <p className="text-gray-400 text-sm mt-1">Sincronización automática activa (cada 1h)</p>
+                                            </div>
+                                            <div className="flex items-center gap-3">
+                                                <button 
+                                                    onClick={() => setIsRepoConnected(false)}
+                                                    className="px-4 py-2 border border-gray-700 text-gray-300 rounded-lg text-sm font-bold hover:bg-gray-800 transition-colors"
+                                                >
+                                                    Desconectar
+                                                </button>
+                                                <button 
+                                                    onClick={handleSync}
+                                                    disabled={isSyncing}
+                                                    className="px-6 py-2 bg-blue-600 text-white rounded-lg text-sm font-bold hover:bg-blue-500 transition-colors flex items-center gap-2 disabled:opacity-70 disabled:cursor-not-allowed"
+                                                >
+                                                    {isSyncing ? (
+                                                        <>
+                                                            <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin"></span>
+                                                            Sincronizando...
+                                                        </>
+                                                    ) : (
+                                                        <>
+                                                            <span className="material-symbols-outlined text-lg">sync</span>
+                                                            Sincronizar Ahora
+                                                        </>
+                                                    )}
+                                                </button>
+                                            </div>
+                                        </div>
+
+                                        {/* Visibility Preview */}
+                                        <div className="border border-gray-200 rounded-xl overflow-hidden">
+                                            <div className="bg-gray-50 px-4 py-3 border-b border-gray-200 flex justify-between items-center">
+                                                <h4 className="font-bold text-gray-700 text-sm flex items-center gap-2">
+                                                    <span className="material-symbols-outlined text-gray-400">visibility</span>
+                                                    Vista Previa del Cliente
+                                                </h4>
+                                                <span className="text-xs bg-green-100 text-green-700 px-2 py-0.5 rounded font-medium">Visible</span>
+                                            </div>
+                                            <div className="p-6 bg-white opacity-70 pointer-events-none grayscale-[0.5]">
+                                                {/* Simulated Commit History Preview */}
+                                                <div className="space-y-4">
+                                                    <div className="flex items-center justify-between text-sm text-gray-500 mb-2">
+                                                        <span>Últimos Commits</span>
+                                                        <span>Hace 2 horas</span>
+                                                    </div>
+                                                    {[1, 2, 3].map(i => (
+                                                        <div key={i} className="flex gap-3 items-center p-3 border border-gray-100 rounded-lg">
+                                                            <div className="w-2 h-2 rounded-full bg-blue-500"></div>
+                                                            <div className="h-2 bg-gray-200 rounded w-64"></div>
+                                                            <div className="flex-1"></div>
+                                                            <div className="h-2 bg-gray-100 rounded w-12"></div>
+                                                        </div>
+                                                    ))}
+                                                </div>
+                                            </div>
+                                        </div>
                                     </>
                                 )}
                             </div>
-                            <div className="flex gap-2">
-                                {!currentFolder && (
-                                    <button className="flex items-center gap-1 text-xs font-bold text-primary hover:bg-primary/5 px-3 py-1.5 rounded-lg transition-colors">
-                                        <span className="material-symbols-outlined text-base">create_new_folder</span> Nueva Carpeta
-                                    </button>
-                                )}
-                                <button className="flex items-center gap-1 text-xs font-bold text-gray-600 hover:bg-gray-100 px-3 py-1.5 rounded-lg transition-colors">
-                                    <span className="material-symbols-outlined text-base">upload_file</span> Subir
-                                </button>
-                            </div>
-                        </div>
+                        )}
 
-                        {/* Drag & Drop Area */}
-                        <div 
-                            onDragOver={handleDragOver} onDragLeave={handleDragLeave} onDrop={handleDrop}
-                            className={`w-full border-2 border-dashed rounded-xl p-6 flex flex-col items-center justify-center gap-2 transition-all cursor-pointer ${isDragging ? 'border-primary bg-primary/5' : 'border-gray-300 hover:bg-gray-50'}`}
-                        >
-                            <span className="material-symbols-outlined text-3xl text-gray-400">cloud_upload</span>
-                            <p className="text-sm text-gray-600 font-medium">Arrastra archivos aquí o haz clic para explorar</p>
-                        </div>
-
-                        {/* Folders View */}
-                        {!currentFolder && (
+                        {/* DOCUMENTS VIEW (EXISTING LOGIC) */}
+                        {fileViewMode === 'documents' && (
                             <>
-                                <h3 className="text-xs font-bold text-gray-500 uppercase mt-4 mb-2">Carpetas</h3>
-                                <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                                    {folders.map((folder) => (
-                                        <div 
-                                            key={folder.id} 
-                                            onDoubleClick={() => setCurrentFolder(folder)}
-                                            className="p-4 bg-white border border-gray-200 rounded-xl hover:shadow-md hover:border-primary/50 transition-all cursor-pointer group relative select-none"
+                                {/* Internal Breadcrumbs for Files */}
+                                <div className="flex items-center justify-between bg-white p-3 rounded-xl border border-gray-200">
+                                    <div className="flex items-center gap-2">
+                                        <button 
+                                            onClick={() => setCurrentFolder(null)} 
+                                            className={`text-sm font-bold hover:underline flex items-center gap-1 ${!currentFolder ? 'text-gray-900' : 'text-gray-500'}`}
                                         >
-                                            <div className="flex justify-between items-start mb-3">
-                                                <span className="material-symbols-outlined text-4xl text-amber-300">folder</span>
-                                                <div className="relative">
-                                                    <button 
-                                                        className="text-gray-400 hover:text-gray-600 p-1 rounded-full hover:bg-gray-100 folder-menu-trigger" 
-                                                        onClick={(e) => { e.stopPropagation(); setActiveMenuId(activeMenuId === folder.id ? null : folder.id); }}
-                                                    >
-                                                        <span className="material-symbols-outlined text-lg">more_vert</span>
-                                                    </button>
-                                                    {activeMenuId === folder.id && (
-                                                        <div className="absolute right-0 top-8 bg-white shadow-card border border-gray-100 rounded-lg p-1 z-10 w-32 animate-in fade-in zoom-in-95 duration-100">
-                                                            <button className="w-full text-left px-3 py-2 text-xs font-medium hover:bg-gray-50 rounded flex items-center gap-2 text-gray-700">
-                                                                <span className="material-symbols-outlined text-sm">edit</span> Renombrar
-                                                            </button>
+                                            <span className="material-symbols-outlined text-lg">folder_open</span> Root
+                                        </button>
+                                        {currentFolder && (
+                                            <>
+                                                <span className="material-symbols-outlined text-gray-300 text-sm">chevron_right</span>
+                                                <span className="text-sm font-bold text-gray-900">{currentFolder.name}</span>
+                                            </>
+                                        )}
+                                    </div>
+                                    <div className="flex gap-2">
+                                        {!currentFolder && (
+                                            <button className="flex items-center gap-1 text-xs font-bold text-primary hover:bg-primary/5 px-3 py-1.5 rounded-lg transition-colors">
+                                                <span className="material-symbols-outlined text-base">create_new_folder</span> Nueva Carpeta
+                                            </button>
+                                        )}
+                                        <button className="flex items-center gap-1 text-xs font-bold text-gray-600 hover:bg-gray-100 px-3 py-1.5 rounded-lg transition-colors">
+                                            <span className="material-symbols-outlined text-base">upload_file</span> Subir
+                                        </button>
+                                    </div>
+                                </div>
+
+                                {/* Drag & Drop Area */}
+                                <div 
+                                    onDragOver={handleDragOver} onDragLeave={handleDragLeave} onDrop={handleDrop}
+                                    className={`w-full border-2 border-dashed rounded-xl p-6 flex flex-col items-center justify-center gap-2 transition-all cursor-pointer ${isDragging ? 'border-primary bg-primary/5' : 'border-gray-300 hover:bg-gray-50'}`}
+                                >
+                                    <span className="material-symbols-outlined text-3xl text-gray-400">cloud_upload</span>
+                                    <p className="text-sm text-gray-600 font-medium">Arrastra archivos aquí o haz clic para explorar</p>
+                                </div>
+
+                                {/* Folders View */}
+                                {!currentFolder && (
+                                    <>
+                                        <h3 className="text-xs font-bold text-gray-500 uppercase mt-4 mb-2">Carpetas</h3>
+                                        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                                            {folders.map((folder) => (
+                                                <div 
+                                                    key={folder.id} 
+                                                    onDoubleClick={() => setCurrentFolder(folder)}
+                                                    className="p-4 bg-white border border-gray-200 rounded-xl hover:shadow-md hover:border-primary/50 transition-all cursor-pointer group relative select-none"
+                                                >
+                                                    <div className="flex justify-between items-start mb-3">
+                                                        <span className="material-symbols-outlined text-4xl text-amber-300">folder</span>
+                                                        <div className="relative">
                                                             <button 
-                                                                className="w-full text-left px-3 py-2 text-xs font-medium hover:bg-red-50 text-red-600 rounded flex items-center gap-2"
-                                                                onClick={(e) => { e.stopPropagation(); setItemToDelete({type: 'folder', id: folder.id, name: folder.name}); setActiveMenuId(null); }}
+                                                                className="text-gray-400 hover:text-gray-600 p-1 rounded-full hover:bg-gray-100 folder-menu-trigger" 
+                                                                onClick={(e) => { e.stopPropagation(); setActiveMenuId(activeMenuId === folder.id ? null : folder.id); }}
                                                             >
-                                                                <span className="material-symbols-outlined text-sm">delete</span> Borrar
+                                                                <span className="material-symbols-outlined text-lg">more_vert</span>
+                                                            </button>
+                                                            {activeMenuId === folder.id && (
+                                                                <div className="absolute right-0 top-8 bg-white shadow-card border border-gray-100 rounded-lg p-1 z-10 w-32 animate-in fade-in zoom-in-95 duration-100">
+                                                                    <button className="w-full text-left px-3 py-2 text-xs font-medium hover:bg-gray-50 rounded flex items-center gap-2 text-gray-700">
+                                                                        <span className="material-symbols-outlined text-sm">edit</span> Renombrar
+                                                                    </button>
+                                                                    <button 
+                                                                        className="w-full text-left px-3 py-2 text-xs font-medium hover:bg-red-50 text-red-600 rounded flex items-center gap-2"
+                                                                        onClick={(e) => { e.stopPropagation(); setItemToDelete({type: 'folder', id: folder.id, name: folder.name}); setActiveMenuId(null); }}
+                                                                    >
+                                                                        <span className="material-symbols-outlined text-sm">delete</span> Borrar
+                                                                    </button>
+                                                                </div>
+                                                            )}
+                                                        </div>
+                                                    </div>
+                                                    <h3 className="font-bold text-gray-900 truncate text-sm">{folder.name}</h3>
+                                                    <p className="text-xs text-gray-500 mt-1">{folder.filesCount} archivos</p>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    </>
+                                )}
+
+                                {/* Recent Files View */}
+                                <h3 className="text-xs font-bold text-gray-500 uppercase mt-4 mb-2">{currentFolder ? `Archivos en ${currentFolder.name}` : 'Archivos Recientes'}</h3>
+                                <div className="bg-white rounded-xl border border-gray-200 overflow-hidden shadow-sm">
+                                    <table className="w-full text-left">
+                                        <thead className="bg-gray-50 border-b border-gray-200">
+                                            <tr>
+                                                <th className="px-6 py-3 text-xs font-semibold text-gray-500 uppercase">Nombre</th>
+                                                <th className="px-6 py-3 text-xs font-semibold text-gray-500 uppercase">Tipo</th>
+                                                <th className="px-6 py-3 text-xs font-semibold text-gray-500 uppercase text-right">Acciones</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody className="divide-y divide-gray-100">
+                                            {files.map((file) => (
+                                                <tr key={file.id} className="hover:bg-gray-50 transition-colors">
+                                                    <td className="px-6 py-3">
+                                                        <div className="flex items-center gap-3">
+                                                            <span className="material-symbols-outlined text-gray-400">{getFileIcon(file.type)}</span>
+                                                            <div>
+                                                                <p className="font-medium text-sm text-gray-900">{file.name}</p>
+                                                                <p className="text-[10px] text-gray-400">Subido por {file.uploader} • {file.date}</p>
+                                                            </div>
+                                                        </div>
+                                                    </td>
+                                                    <td className="px-6 py-3 text-xs text-gray-500 uppercase">{file.type}</td>
+                                                    <td className="px-6 py-3 text-right">
+                                                        <div className="flex justify-end gap-1">
+                                                            <button className="p-1.5 text-gray-400 hover:text-primary rounded hover:bg-gray-100" title="Descargar"><span className="material-symbols-outlined text-lg">download</span></button>
+                                                            <button 
+                                                                className="p-1.5 text-gray-400 hover:text-red-600 rounded hover:bg-red-50" 
+                                                                title="Eliminar"
+                                                                onClick={() => setItemToDelete({type: 'file', id: file.id, name: file.name})}
+                                                            >
+                                                                <span className="material-symbols-outlined text-lg">delete</span>
                                                             </button>
                                                         </div>
-                                                    )}
-                                                </div>
-                                            </div>
-                                            <h3 className="font-bold text-gray-900 truncate text-sm">{folder.name}</h3>
-                                            <p className="text-xs text-gray-500 mt-1">{folder.filesCount} archivos</p>
-                                        </div>
-                                    ))}
+                                                    </td>
+                                                </tr>
+                                            ))}
+                                        </tbody>
+                                    </table>
                                 </div>
                             </>
                         )}
-
-                        {/* Recent Files View */}
-                        <h3 className="text-xs font-bold text-gray-500 uppercase mt-4 mb-2">{currentFolder ? `Archivos en ${currentFolder.name}` : 'Archivos Recientes'}</h3>
-                        <div className="bg-white rounded-xl border border-gray-200 overflow-hidden shadow-sm">
-                            <table className="w-full text-left">
-                                <thead className="bg-gray-50 border-b border-gray-200">
-                                    <tr>
-                                        <th className="px-6 py-3 text-xs font-semibold text-gray-500 uppercase">Nombre</th>
-                                        <th className="px-6 py-3 text-xs font-semibold text-gray-500 uppercase">Tipo</th>
-                                        <th className="px-6 py-3 text-xs font-semibold text-gray-500 uppercase text-right">Acciones</th>
-                                    </tr>
-                                </thead>
-                                <tbody className="divide-y divide-gray-100">
-                                    {files.map((file) => (
-                                        <tr key={file.id} className="hover:bg-gray-50 transition-colors">
-                                            <td className="px-6 py-3">
-                                                <div className="flex items-center gap-3">
-                                                    <span className="material-symbols-outlined text-gray-400">{getFileIcon(file.type)}</span>
-                                                    <div>
-                                                        <p className="font-medium text-sm text-gray-900">{file.name}</p>
-                                                        <p className="text-[10px] text-gray-400">Subido por {file.uploader} • {file.date}</p>
-                                                    </div>
-                                                </div>
-                                            </td>
-                                            <td className="px-6 py-3 text-xs text-gray-500 uppercase">{file.type}</td>
-                                            <td className="px-6 py-3 text-right">
-                                                <div className="flex justify-end gap-1">
-                                                    <button className="p-1.5 text-gray-400 hover:text-primary rounded hover:bg-gray-100" title="Descargar"><span className="material-symbols-outlined text-lg">download</span></button>
-                                                    <button 
-                                                        className="p-1.5 text-gray-400 hover:text-red-600 rounded hover:bg-red-50" 
-                                                        title="Eliminar"
-                                                        onClick={() => setItemToDelete({type: 'file', id: file.id, name: file.name})}
-                                                    >
-                                                        <span className="material-symbols-outlined text-lg">delete</span>
-                                                    </button>
-                                                </div>
-                                            </td>
-                                        </tr>
-                                    ))}
-                                </tbody>
-                            </table>
-                        </div>
                     </div>
                 )}
             </div>
