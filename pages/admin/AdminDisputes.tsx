@@ -475,7 +475,7 @@ const AdminDisputes: React.FC = () => {
                                                 type="number" 
                                                 value={splitClient}
                                                 onChange={(e) => handleSplitChange('client', e.target.value)}
-                                                className="w-full pl-4 pr-2 py-1.5 border border-gray-300 rounded text-sm font-bold text-gray-900 focus:ring-2 focus:ring-blue-500 outline-none"
+                                                className="w-full pl-4 pr-2 py-1.5 border border-gray-300 bg-white rounded text-sm font-bold text-gray-900 focus:ring-2 focus:ring-blue-500 outline-none transition-all"
                                                 disabled={resolutionType !== 'split'}
                                               />
                                           </div>
@@ -488,7 +488,7 @@ const AdminDisputes: React.FC = () => {
                                                 type="number" 
                                                 value={splitVendor}
                                                 onChange={(e) => handleSplitChange('vendor', e.target.value)}
-                                                className="w-full pl-4 pr-2 py-1.5 border border-gray-300 rounded text-sm font-bold text-gray-900 focus:ring-2 focus:ring-blue-500 outline-none"
+                                                className="w-full pl-4 pr-2 py-1.5 border border-gray-300 bg-white rounded text-sm font-bold text-gray-900 focus:ring-2 focus:ring-blue-500 outline-none transition-all"
                                                 disabled={resolutionType !== 'split'}
                                               />
                                           </div>

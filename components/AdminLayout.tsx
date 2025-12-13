@@ -32,12 +32,12 @@ const AdminLayout: React.FC<AdminLayoutProps> = ({ children }) => {
         {/* Sidebar */}
         <aside 
           className={`
-            bg-gray-900 text-gray-300 border-r border-gray-800 flex-shrink-0 sticky top-20 h-[calc(100vh-80px)] overflow-y-auto transition-all duration-300
+            bg-gray-900 text-gray-300 border-r border-gray-800 flex-shrink-0 sticky top-20 h-[calc(100vh-80px)] overflow-y-auto transition-all duration-300 flex flex-col
             ${isSidebarOpen ? 'w-64' : 'w-0 overflow-hidden md:w-20'}
-            hidden md:block
+            hidden md:flex
           `}
         >
-           <div className="p-4 py-6">
+           <div className="p-4 py-6 flex-1">
               <nav className="space-y-1">
                  {menuItems.map((item, index) => (
                     <Link 
@@ -58,6 +58,17 @@ const AdminLayout: React.FC<AdminLayoutProps> = ({ children }) => {
                     </Link>
                  ))}
               </nav>
+           </div>
+
+           {/* Logout Section */}
+           <div className="p-4 border-t border-gray-800">
+                <button 
+                    onClick={() => { localStorage.removeItem('ai_dev_user'); navigate('/'); }}
+                    className="flex items-center gap-3 px-3 py-3 rounded-lg text-sm font-medium text-red-400 hover:bg-red-900/20 hover:text-red-300 transition-all w-full"
+                >
+                    <span className="material-symbols-outlined">logout</span>
+                    <span className={`${!isSidebarOpen && 'hidden'}`}>Cerrar Sesión</span>
+                </button>
            </div>
         </aside>
 
