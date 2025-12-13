@@ -40,6 +40,14 @@ import VendorMessages from './pages/vendor/VendorMessages';
 import VendorCalendar from './pages/vendor/VendorCalendar';
 import VendorNotifications from './pages/vendor/VendorNotifications';
 
+// Admin Views
+import AdminDashboard from './pages/admin/AdminDashboard';
+import AdminUsers from './pages/admin/AdminUsers';
+import AdminMetrics from './pages/admin/AdminMetrics';
+import AdminPlatform from './pages/admin/AdminPlatform';
+import AdminDisputes from './pages/admin/AdminDisputes';
+import AdminSettings from './pages/admin/AdminSettings';
+
 // Helper component to scroll to top on route change
 const ScrollToTopHelper = () => {
     ScrollToTop();
@@ -98,11 +106,17 @@ const App: React.FC = () => {
         <Route path="/vendor/clients" element={<ProtectedRoute><VendorClients /></ProtectedRoute>} />
         <Route path="/vendor/finance" element={<ProtectedRoute><VendorFinance /></ProtectedRoute>} />
         <Route path="/vendor/profile" element={<ProtectedRoute><VendorProfile /></ProtectedRoute>} />
-        
-        {/* Specific Vendor Implementation for these routes */}
         <Route path="/vendor/settings" element={<ProtectedRoute><VendorSettings /></ProtectedRoute>} /> 
         <Route path="/vendor/messages" element={<ProtectedRoute><VendorMessages /></ProtectedRoute>} />
         <Route path="/vendor/notifications" element={<ProtectedRoute><VendorNotifications /></ProtectedRoute>} />
+
+        {/* Admin Protected Routes */}
+        <Route path="/admin/dashboard" element={<ProtectedRoute><AdminDashboard /></ProtectedRoute>} />
+        <Route path="/admin/users" element={<ProtectedRoute><AdminUsers /></ProtectedRoute>} />
+        <Route path="/admin/metrics" element={<ProtectedRoute><AdminMetrics /></ProtectedRoute>} />
+        <Route path="/admin/platform" element={<ProtectedRoute><AdminPlatform /></ProtectedRoute>} />
+        <Route path="/admin/disputes" element={<ProtectedRoute><AdminDisputes /></ProtectedRoute>} />
+        <Route path="/admin/settings" element={<ProtectedRoute><AdminSettings /></ProtectedRoute>} />
 
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>

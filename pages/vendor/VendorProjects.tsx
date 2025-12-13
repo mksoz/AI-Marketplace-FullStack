@@ -45,6 +45,11 @@ const VendorProjects: React.FC = () => {
   });
   const searchRef = useRef<HTMLDivElement>(null);
 
+  // Release Funds Modal State
+  const [releaseModalOpen, setReleaseModalOpen] = useState(false);
+  const [milestoneForRelease, setMilestoneForRelease] = useState<{name: string, amount: string} | null>(null);
+  const [releaseNote, setReleaseNote] = useState('');
+
   const projects = [
       { 
         id: '1', 
@@ -137,6 +142,19 @@ const VendorProjects: React.FC = () => {
   const handleSync = () => {
       setIsSyncing(true);
       setTimeout(() => setIsSyncing(false), 2000);
+  };
+
+  const openReleaseModal = (milestoneName: string, amount: string) => {
+      setMilestoneForRelease({ name: milestoneName, amount });
+      setReleaseModalOpen(true);
+  };
+
+  const handleSendReleaseRequest = () => {
+      // Logic to send request
+      console.log('Requesting release for:', milestoneForRelease, 'Note:', releaseNote);
+      setReleaseModalOpen(false);
+      setReleaseNote('');
+      // Could add a toast notification here
   };
 
   useEffect(() => {
@@ -452,8 +470,18 @@ const VendorProjects: React.FC = () => {
                         
                         <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
                             <div className="bg-gray-50 px-6 py-3 border-b border-gray-200 flex justify-between items-center">
-                                <span className="font-bold text-sm text-gray-700 uppercase">Hito 2: Desarrollo MVP</span>
-                                <span className="text-xs font-bold bg-blue-100 text-blue-700 px-2 py-1 rounded">Fondos en Escrow: $5,000</span>
+                                <div className="flex flex-col sm:flex-row sm:items-center gap-2">
+                                    <span className="font-bold text-sm text-gray-700 uppercase">Hito 2: Desarrollo MVP</span>
+                                    <span className="text-xs font-bold bg-blue-100 text-blue-700 px-2 py-1 rounded">Fondos en Escrow: $5,000</span>
+                                </div>
+                                {/* NEW TRIGGER BUTTON FOR FUNDS RELEASE */}
+                                <button 
+                                    onClick={() => openReleaseModal('Hito 2: Desarrollo MVP', '$5,000')}
+                                    className="flex items-center gap-1.5 px-3 py-1.5 bg-green-600 text-white text-xs font-bold rounded-lg hover:bg-green-700 transition-colors shadow-sm"
+                                >
+                                    <span className="material-symbols-outlined text-sm">payments</span>
+                                    Solicitar Liberación
+                                </button>
                             </div>
                             <div className="divide-y divide-gray-100">
                                 <div className="p-4 px-6 flex justify-between items-center">
@@ -742,6 +770,61 @@ const VendorProjects: React.FC = () => {
                 <div className="flex justify-end gap-3 pt-2">
                     <button onClick={() => setItemToDelete(null)} className="px-4 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 font-bold rounded-lg transition-colors">Cancelar</button>
                     <button onClick={() => setItemToDelete(null)} className="px-4 py-2 bg-red-600 hover:bg-red-700 text-white font-bold rounded-lg transition-colors">Eliminar</button>
+                </div>
+            </div>
+        </Modal>
+
+        {/* Fund Release Modal */}
+        <Modal isOpen={releaseModalOpen} onClose={() => setReleaseModalOpen(false)} title="Solicitar Liberación de Fondos">
+            <div className="space-y-6">
+                <div className="bg-green-50 border border-green-200 rounded-xl p-4 flex gap-4 items-center">
+                    <div className="w-12 h-12 bg-white rounded-full flex items-center justify-center text-green-600 shadow-sm border border-green-100">
+                        <span className="material-symbols-outlined text-2xl">payments</span>
+                    </div>
+                    <div>
+                        <p className="text-sm text-green-800 font-bold uppercase">Monto a Liberar (Escrow)</p>
+                        <p className="text-3xl font-black text-green-700">{milestoneForRelease?.amount}</p>
+                        <p className="text-xs text-green-600">{milestoneForRelease?.name}</p>
+                    </div>
+                </div>
+
+                <div>
+                    <label className="block text-sm font-bold text-gray-700 mb-2">Nota para el cliente</label>
+                    <textarea 
+                        className="w-full px-4 py-3 rounded-xl border border-gray-200 bg-white text-gray-900 focus:ring-2 focus:ring-primary focus:border-transparent outline-none transition-all placeholder:text-gray-400 h-32 resize-none"
+                        placeholder="Ej: Hola, hemos completado todos los entregables acordados para este hito. Adjunto los reportes finales..."
+                        value={releaseNote}
+                        onChange={(e) => setReleaseNote(e.target.value)}
+                    ></textarea>
+                </div>
+
+                <div>
+                    <label className="block text-sm font-bold text-gray-700 mb-2">Evidencia Entregada</label>
+                    <div className="border border-gray-200 rounded-xl overflow-hidden">
+                        <div className="p-3 bg-gray-50 flex items-center gap-2 border-b border-gray-200">
+                            <span className="material-symbols-outlined text-gray-400 text-sm">folder</span>
+                            <span className="text-xs font-bold text-gray-500 uppercase">Seleccionar archivos vinculados</span>
+                        </div>
+                        <div className="p-2 space-y-1 max-h-40 overflow-y-auto">
+                            <label className="flex items-center gap-3 p-2 hover:bg-gray-50 rounded-lg cursor-pointer">
+                                <input type="checkbox" defaultChecked className="rounded text-green-600 focus:ring-green-500" />
+                                <span className="material-symbols-outlined text-gray-400">description</span>
+                                <span className="text-sm text-gray-700 truncate">Arquitectura_Backend_vFINAL.pdf</span>
+                            </label>
+                            <label className="flex items-center gap-3 p-2 hover:bg-gray-50 rounded-lg cursor-pointer">
+                                <input type="checkbox" defaultChecked className="rounded text-green-600 focus:ring-green-500" />
+                                <span className="material-symbols-outlined text-gray-400">code</span>
+                                <span className="text-sm text-gray-700 truncate">Repo Link: api-core-v1</span>
+                            </label>
+                        </div>
+                    </div>
+                </div>
+
+                <div className="pt-2 flex gap-3">
+                    <button onClick={() => setReleaseModalOpen(false)} className="flex-1 py-3 border border-gray-200 text-gray-600 font-bold rounded-xl hover:bg-gray-50">Cancelar</button>
+                    <button onClick={handleSendReleaseRequest} className="flex-1 py-3 bg-green-600 text-white font-bold rounded-xl hover:bg-green-700 shadow-lg shadow-green-100 flex items-center justify-center gap-2">
+                        <span className="material-symbols-outlined">send</span> Enviar Solicitud
+                    </button>
                 </div>
             </div>
         </Modal>

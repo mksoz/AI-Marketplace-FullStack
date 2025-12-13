@@ -13,7 +13,7 @@ const Header: React.FC<HeaderProps> = ({ simple = false }) => {
   const [isLoginOpen, setIsLoginOpen] = useState(false);
   
   // Auth State
-  const [user, setUser] = useState<{name: string, avatar: string, role: 'client' | 'vendor'} | null>(null);
+  const [user, setUser] = useState<{name: string, avatar: string, role: 'client' | 'vendor' | 'admin'} | null>(null);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [loginError, setLoginError] = useState('');
@@ -66,8 +66,18 @@ const Header: React.FC<HeaderProps> = ({ simple = false }) => {
       setUser(userData);
       setIsLoginOpen(false);
       navigate('/vendor/dashboard');
+    } else if (email === 'admin' && password === 'admin') {
+      const userData = {
+        name: 'Super Admin',
+        avatar: 'https://ui-avatars.com/api/?name=Super+Admin&background=000&color=fff',
+        role: 'admin' as const
+      };
+      localStorage.setItem('ai_dev_user', JSON.stringify(userData));
+      setUser(userData);
+      setIsLoginOpen(false);
+      navigate('/admin/dashboard');
     } else {
-      setLoginError('Credenciales incorrectas. Usa cliente/cliente o vendor/vendor');
+      setLoginError('Credenciales incorrectas.');
     }
   };
 
@@ -87,8 +97,19 @@ const Header: React.FC<HeaderProps> = ({ simple = false }) => {
   };
 
   // Dynamic Dashboard Link based on role
-  const dashboardLink = user?.role === 'vendor' ? '/vendor/dashboard' : '/client/dashboard';
-  const dashboardPrefix = user?.role === 'vendor' ? '/vendor' : '/client';
+  let dashboardLink = '/';
+  let dashboardPrefix = '/';
+  
+  if (user?.role === 'vendor') {
+      dashboardLink = '/vendor/dashboard';
+      dashboardPrefix = '/vendor';
+  } else if (user?.role === 'client') {
+      dashboardLink = '/client/dashboard';
+      dashboardPrefix = '/client';
+  } else if (user?.role === 'admin') {
+      dashboardLink = '/admin/dashboard';
+      dashboardPrefix = '/admin';
+  }
 
   return (
     <>
@@ -112,7 +133,9 @@ const Header: React.FC<HeaderProps> = ({ simple = false }) => {
                   
                   {/* "Mi Perfil" appears here when logged in */}
                   {user && (
-                    <Link to={dashboardLink} className={getLinkClasses(dashboardPrefix)}>Mi Perfil</Link>
+                    <Link to={dashboardLink} className={getLinkClasses(dashboardPrefix)}>
+                        {user.role === 'admin' ? 'Admin Panel' : 'Mi Perfil'}
+                    </Link>
                   )}
                 </nav>
 
@@ -160,17 +183,19 @@ const Header: React.FC<HeaderProps> = ({ simple = false }) => {
                                 Dashboard
                              </Link>
 
-                             <Link 
-                                to={user.role === 'vendor' ? '/vendor/profile' : '/client/profile'} 
-                                className="px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 flex items-center gap-3 transition-colors"
-                                onClick={() => setIsUserMenuOpen(false)}
-                             >
-                                <span className="material-symbols-outlined text-[20px] text-gray-400">person</span>
-                                Mi Perfil
-                             </Link>
+                             {user.role !== 'admin' && (
+                                <Link 
+                                    to={user.role === 'vendor' ? '/vendor/profile' : '/client/profile'} 
+                                    className="px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 flex items-center gap-3 transition-colors"
+                                    onClick={() => setIsUserMenuOpen(false)}
+                                >
+                                    <span className="material-symbols-outlined text-[20px] text-gray-400">person</span>
+                                    Mi Perfil
+                                </Link>
+                             )}
 
                              <Link 
-                                to={user.role === 'vendor' ? '/vendor/settings' : '/client/settings'} 
+                                to={user.role === 'admin' ? '/admin/settings' : (user.role === 'vendor' ? '/vendor/settings' : '/client/settings')} 
                                 className="px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 flex items-center gap-3 transition-colors"
                                 onClick={() => setIsUserMenuOpen(false)}
                              >
@@ -219,11 +244,14 @@ const Header: React.FC<HeaderProps> = ({ simple = false }) => {
       <Modal isOpen={isLoginOpen} onClose={() => setIsLoginOpen(false)} title="Iniciar Sesión">
          <div className="flex flex-col gap-4">
             <h4 className="text-xl font-bold text-gray-800">Bienvenido de nuevo</h4>
-            <div className="p-3 bg-gray-50 rounded-lg text-xs text-gray-500">
+            <div className="p-3 bg-gray-50 rounded-lg text-xs text-gray-500 space-y-1">
                 <p><strong>Demo Access:</strong></p>
-                <div className="flex justify-between mt-1">
+                <div className="flex justify-between">
                     <span>Cliente: <code>cliente / cliente</code></span>
                     <span>Vendor: <code>vendor / vendor</code></span>
+                </div>
+                <div className="flex justify-between border-t border-gray-200 pt-1 mt-1">
+                    <span>Admin: <code>admin / admin</code></span>
                 </div>
             </div>
             
