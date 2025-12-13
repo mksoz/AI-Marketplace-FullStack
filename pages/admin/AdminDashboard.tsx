@@ -1,208 +1,256 @@
 import React, { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import AdminLayout from '../../components/AdminLayout';
 
 const AdminDashboard: React.FC = () => {
-  const [timeRange, setTimeRange] = useState<'7d' | '30d' | '1y'>('30d');
+  const navigate = useNavigate();
+  const [timeRange, setTimeRange] = useState<'24h' | '7d' | '30d'>('24h');
 
-  // Mock Data for Charts (CSS based)
-  const chartData = [35, 45, 30, 60, 75, 50, 80, 70, 90, 85, 100, 95]; // Heights in %
+  // Sparkline simulator
+  const Sparkline = ({ color, data }: { color: string, data: number[] }) => (
+      <div className="flex items-end gap-1 h-8 w-24">
+          {data.map((h, i) => (
+              <div key={i} className={`flex-1 rounded-t-sm ${color}`} style={{height: `${h}%`}}></div>
+          ))}
+      </div>
+  );
 
   return (
     <AdminLayout>
-      <div className="space-y-8 pb-12">
-         {/* Header & Controls */}
-         <div className="flex flex-col md:flex-row justify-between items-end gap-4">
+      <div className="space-y-6 pb-12">
+         {/* Command Center Header */}
+         <div className="flex flex-col md:flex-row justify-between items-end gap-4 bg-gray-900 p-6 rounded-2xl text-white shadow-xl">
             <div>
-               <h1 className="text-3xl font-black text-gray-900 tracking-tight">Resumen Ejecutivo</h1>
-               <p className="text-gray-500 mt-1">Visión global del rendimiento de la plataforma.</p>
+               <div className="flex items-center gap-2 mb-1">
+                   <div className="w-2 h-2 rounded-full bg-green-500 animate-pulse"></div>
+                   <span className="text-xs font-bold text-green-400 uppercase tracking-widest">Sistema Operativo</span>
+               </div>
+               <h1 className="text-2xl font-black tracking-tight">Centro de Mando</h1>
+               <p className="text-gray-400 text-sm mt-1">Visión holística de operaciones, finanzas y riesgo.</p>
             </div>
-            <div className="bg-white border border-gray-200 p-1 rounded-lg flex shadow-sm">
-                <button 
-                    onClick={() => setTimeRange('7d')}
-                    className={`px-4 py-1.5 text-sm font-bold rounded-md transition-colors ${timeRange === '7d' ? 'bg-gray-900 text-white' : 'text-gray-500 hover:text-gray-900'}`}
-                >
-                    7 Días
-                </button>
-                <button 
-                    onClick={() => setTimeRange('30d')}
-                    className={`px-4 py-1.5 text-sm font-bold rounded-md transition-colors ${timeRange === '30d' ? 'bg-gray-900 text-white' : 'text-gray-500 hover:text-gray-900'}`}
-                >
-                    30 Días
-                </button>
-                <button 
-                    onClick={() => setTimeRange('1y')}
-                    className={`px-4 py-1.5 text-sm font-bold rounded-md transition-colors ${timeRange === '1y' ? 'bg-gray-900 text-white' : 'text-gray-500 hover:text-gray-900'}`}
-                >
-                    Anual
-                </button>
+            <div className="flex gap-4 text-right">
+                <div>
+                    <p className="text-xs text-gray-400 uppercase font-bold">Hora del Servidor</p>
+                    <p className="font-mono font-bold text-lg">{new Date().toLocaleTimeString('es-ES', {hour: '2-digit', minute:'2-digit'})} UTC</p>
+                </div>
+                <div className="w-px bg-gray-700 h-10"></div>
+                <div>
+                    <p className="text-xs text-gray-400 uppercase font-bold">Usuarios Activos</p>
+                    <p className="font-mono font-bold text-lg text-blue-400">842</p>
+                </div>
             </div>
          </div>
          
-         {/* Key Metrics */}
+         {/* 1. KEY PERFORMANCE INDICATORS (FINANCE & GROWTH) */}
          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-            <div className="bg-white p-6 rounded-2xl border border-gray-200 shadow-sm hover:shadow-card transition-shadow">
-                <div className="flex justify-between items-start mb-4">
-                    <div className="p-3 bg-green-50 rounded-xl text-green-600">
-                        <span className="material-symbols-outlined">payments</span>
-                    </div>
-                    <span className="flex items-center text-xs font-bold text-green-600 bg-green-50 px-2 py-1 rounded-full">
-                        +12.5%
+            
+            {/* GMV Card */}
+            <div className="bg-white p-5 rounded-xl border border-gray-200 shadow-sm hover:shadow-md transition-all cursor-pointer group" onClick={() => navigate('/admin/metrics')}>
+                <div className="flex justify-between items-start mb-2">
+                    <p className="text-xs font-bold text-gray-500 uppercase tracking-wide">GMV (Volumen)</p>
+                    <span className="text-xs font-bold text-green-600 bg-green-50 px-1.5 py-0.5 rounded flex items-center gap-1">
+                        <span className="material-symbols-outlined text-[10px]">arrow_upward</span> 12%
                     </span>
                 </div>
-                <p className="text-sm font-bold text-gray-500 uppercase tracking-wide">Ingresos (GMV)</p>
-                <p className="text-3xl font-black text-gray-900 mt-1">$45,200</p>
+                <div className="flex justify-between items-end">
+                    <p className="text-2xl font-black text-gray-900">$142.5k</p>
+                    <Sparkline color="bg-green-500" data={[20, 40, 30, 50, 40, 70, 60, 90]} />
+                </div>
+                <p className="text-[10px] text-gray-400 mt-2">Últimos 30 días</p>
             </div>
 
-            <div className="bg-white p-6 rounded-2xl border border-gray-200 shadow-sm hover:shadow-card transition-shadow">
-                <div className="flex justify-between items-start mb-4">
-                    <div className="p-3 bg-blue-50 rounded-xl text-blue-600">
-                        <span className="material-symbols-outlined">group_add</span>
-                    </div>
-                    <span className="flex items-center text-xs font-bold text-blue-600 bg-blue-50 px-2 py-1 rounded-full">
-                        +8.2%
+            {/* Net Revenue Card */}
+            <div className="bg-white p-5 rounded-xl border border-gray-200 shadow-sm hover:shadow-md transition-all cursor-pointer group" onClick={() => navigate('/admin/metrics')}>
+                <div className="flex justify-between items-start mb-2">
+                    <p className="text-xs font-bold text-gray-500 uppercase tracking-wide">Net Revenue</p>
+                    <span className="text-xs font-bold text-green-600 bg-green-50 px-1.5 py-0.5 rounded flex items-center gap-1">
+                        <span className="material-symbols-outlined text-[10px]">arrow_upward</span> 8%
                     </span>
                 </div>
-                <p className="text-sm font-bold text-gray-500 uppercase tracking-wide">Nuevos Usuarios</p>
-                <p className="text-3xl font-black text-gray-900 mt-1">1,240</p>
+                <div className="flex justify-between items-end">
+                    <p className="text-2xl font-black text-gray-900">$21.3k</p>
+                    <Sparkline color="bg-blue-500" data={[10, 20, 25, 20, 40, 45, 60, 55]} />
+                </div>
+                <p className="text-[10px] text-gray-400 mt-2">Take Rate Promedio: 15%</p>
             </div>
 
-            <div className="bg-white p-6 rounded-2xl border border-gray-200 shadow-sm hover:shadow-card transition-shadow">
-                <div className="flex justify-between items-start mb-4">
-                    <div className="p-3 bg-purple-50 rounded-xl text-purple-600">
-                        <span className="material-symbols-outlined">rocket_launch</span>
-                    </div>
-                    <span className="flex items-center text-xs font-bold text-gray-500 bg-gray-100 px-2 py-1 rounded-full">
-                        0%
+            {/* Liquidity/Matching Card */}
+            <div className="bg-white p-5 rounded-xl border border-gray-200 shadow-sm hover:shadow-md transition-all cursor-pointer group" onClick={() => navigate('/admin/metrics')}>
+                <div className="flex justify-between items-start mb-2">
+                    <p className="text-xs font-bold text-gray-500 uppercase tracking-wide">Liquidez (Match)</p>
+                    <span className="text-xs font-bold text-gray-500 bg-gray-100 px-1.5 py-0.5 rounded">
+                        Estable
                     </span>
                 </div>
-                <p className="text-sm font-bold text-gray-500 uppercase tracking-wide">Proyectos Activos</p>
-                <p className="text-3xl font-black text-gray-900 mt-1">85</p>
+                <div className="flex justify-between items-end">
+                    <p className="text-2xl font-black text-gray-900">4.2d</p>
+                    <div className="text-right">
+                        <p className="text-[10px] font-bold text-gray-500">Oferta: <span className="text-green-600">Alta</span></p>
+                        <p className="text-[10px] font-bold text-gray-500">Demanda: <span className="text-blue-600">Media</span></p>
+                    </div>
+                </div>
+                <p className="text-[10px] text-gray-400 mt-2">Tiempo promedio de contratación</p>
             </div>
 
-            <div className="bg-white p-6 rounded-2xl border border-gray-200 shadow-sm hover:shadow-card transition-shadow">
-                <div className="flex justify-between items-start mb-4">
-                    <div className="p-3 bg-red-50 rounded-xl text-red-600">
-                        <span className="material-symbols-outlined">gavel</span>
-                    </div>
-                    <span className="flex items-center text-xs font-bold text-red-600 bg-red-50 px-2 py-1 rounded-full">
-                        +1
-                    </span>
+            {/* Risk/Disputes Card */}
+            <div className="bg-white p-5 rounded-xl border border-gray-200 shadow-sm hover:shadow-md transition-all cursor-pointer group hover:border-red-200" onClick={() => navigate('/admin/disputes')}>
+                <div className="flex justify-between items-start mb-2">
+                    <p className="text-xs font-bold text-gray-500 uppercase tracking-wide">Riesgo / Disputas</p>
+                    {2 > 0 && <span className="w-2 h-2 rounded-full bg-red-500 animate-ping"></span>}
                 </div>
-                <p className="text-sm font-bold text-gray-500 uppercase tracking-wide">Disputas Abiertas</p>
-                <p className="text-3xl font-black text-gray-900 mt-1">2</p>
+                <div className="flex justify-between items-end">
+                    <p className="text-2xl font-black text-gray-900">2</p>
+                    <span className="material-symbols-outlined text-3xl text-red-100 group-hover:text-red-500 transition-colors">gavel</span>
+                </div>
+                <p className="text-[10px] text-red-500 font-bold mt-2">Requieren atención inmediata</p>
             </div>
          </div>
 
-         {/* Main Chart Section */}
-         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-             <div className="lg:col-span-2 bg-white p-8 rounded-2xl border border-gray-200 shadow-sm">
-                 <div className="flex justify-between items-center mb-8">
-                     <h3 className="font-bold text-xl text-gray-900">Tendencia de Ingresos</h3>
-                     <button className="text-primary text-sm font-bold hover:underline">Ver reporte detallado</button>
-                 </div>
+         {/* 2. MAIN DASHBOARD CONTENT */}
+         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+             
+             {/* Left Col: Activity & Feed */}
+             <div className="lg:col-span-2 space-y-6">
                  
-                 {/* CSS Bar Chart */}
-                 <div className="h-64 flex items-end justify-between gap-2 md:gap-4">
-                     {chartData.map((height, i) => (
-                         <div key={i} className="flex-1 flex flex-col justify-end group cursor-pointer">
-                             <div 
-                                className="w-full bg-gray-100 rounded-t-lg transition-all duration-500 group-hover:bg-primary relative" 
-                                style={{ height: `${height}%` }}
-                             >
-                                 <div className="opacity-0 group-hover:opacity-100 absolute -top-8 left-1/2 -translate-x-1/2 bg-dark text-white text-xs font-bold px-2 py-1 rounded pointer-events-none transition-opacity">
-                                     ${height}k
+                 {/* Live Market Activity Map Placeholder */}
+                 <div className="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden h-80 relative group">
+                     <div className="absolute inset-0 bg-gray-100 bg-[url('https://upload.wikimedia.org/wikipedia/commons/e/ec/World_map_blank_without_borders.svg')] bg-cover bg-center opacity-30"></div>
+                     <div className="absolute inset-0 bg-gradient-to-t from-white via-transparent to-transparent"></div>
+                     
+                     <div className="relative z-10 p-6">
+                         <div className="flex justify-between">
+                             <h3 className="font-bold text-gray-900 flex items-center gap-2">
+                                 <span className="material-symbols-outlined text-blue-500">public</span>
+                                 Actividad Global en Tiempo Real
+                             </h3>
+                             <button className="bg-white/80 backdrop-blur-sm px-3 py-1 rounded-lg text-xs font-bold shadow-sm hover:bg-white">Expandir Mapa</button>
+                         </div>
+                         
+                         {/* Live Blips */}
+                         <div className="absolute top-1/2 left-1/4">
+                             <span className="absolute w-3 h-3 bg-blue-500 rounded-full animate-ping opacity-75"></span>
+                             <span className="relative w-3 h-3 bg-blue-500 rounded-full border-2 border-white block"></span>
+                             <div className="absolute mt-2 bg-black/80 text-white text-[10px] px-2 py-1 rounded whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity">
+                                 Nuevo Proyecto: FinTech (NY)
+                             </div>
+                         </div>
+                         <div className="absolute top-1/3 right-1/3">
+                             <span className="absolute w-3 h-3 bg-green-500 rounded-full animate-ping opacity-75 delay-300"></span>
+                             <span className="relative w-3 h-3 bg-green-500 rounded-full border-2 border-white block"></span>
+                             <div className="absolute mt-2 bg-black/80 text-white text-[10px] px-2 py-1 rounded whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity">
+                                 Pago Liberado: $5k (Berlin)
+                             </div>
+                         </div>
+                     </div>
+                 </div>
+
+                 {/* Recent Transactions / Critical Actions */}
+                 <div className="bg-white rounded-2xl border border-gray-200 shadow-sm p-6">
+                     <div className="flex justify-between items-center mb-4">
+                         <h3 className="font-bold text-gray-900">Movimientos Recientes</h3>
+                         <button className="text-xs font-bold text-primary hover:underline">Ver registro completo</button>
+                     </div>
+                     <div className="space-y-4">
+                         {[
+                             { icon: 'payments', color: 'text-green-600 bg-green-50', text: 'Liberación de Fondos', details: 'Proyecto Alpha → QuantumLeap', amount: '$5,000', time: 'Hace 10 min' },
+                             { icon: 'person_add', color: 'text-blue-600 bg-blue-50', text: 'Nuevo Vendor Registrado', details: 'AI Vision Labs (Verificación pendiente)', amount: '-', time: 'Hace 45 min' },
+                             { icon: 'gavel', color: 'text-red-600 bg-red-50', text: 'Disputa Iniciada', details: 'Cliente Corp reportó retraso', amount: 'Escrow: $12k', time: 'Hace 2 horas' },
+                         ].map((item, i) => (
+                             <div key={i} className="flex items-center justify-between p-3 hover:bg-gray-50 rounded-xl transition-colors border border-transparent hover:border-gray-100">
+                                 <div className="flex items-center gap-3">
+                                     <div className={`w-10 h-10 rounded-full flex items-center justify-center ${item.color}`}>
+                                         <span className="material-symbols-outlined text-lg">{item.icon}</span>
+                                     </div>
+                                     <div>
+                                         <p className="text-sm font-bold text-gray-900">{item.text}</p>
+                                         <p className="text-xs text-gray-500">{item.details}</p>
+                                     </div>
+                                 </div>
+                                 <div className="text-right">
+                                     <p className="text-sm font-bold text-gray-900">{item.amount}</p>
+                                     <p className="text-[10px] text-gray-400">{item.time}</p>
                                  </div>
                              </div>
-                             <p className="text-center text-xs text-gray-400 mt-2 font-medium">{i + 1} Ago</p>
-                         </div>
-                     ))}
+                         ))}
+                     </div>
                  </div>
              </div>
 
-             {/* Actionable Sidebar */}
+             {/* Right Col: Health & Tasks */}
              <div className="space-y-6">
-                 {/* Verification Queue */}
-                 <div className="bg-white p-6 rounded-2xl border border-gray-200 shadow-sm">
-                     <div className="flex justify-between items-center mb-4">
-                         <h3 className="font-bold text-gray-900">Atención Requerida</h3>
-                         <span className="bg-amber-100 text-amber-800 text-xs font-bold px-2 py-0.5 rounded-full">3 Tareas</span>
-                     </div>
-                     <div className="space-y-3">
-                         <div className="flex items-center gap-3 p-3 rounded-xl border border-gray-100 hover:border-gray-300 transition-colors bg-gray-50 cursor-pointer">
-                             <div className="w-10 h-10 rounded-full bg-blue-100 text-blue-600 flex items-center justify-center font-bold text-xs">
-                                 TN
-                             </div>
-                             <div className="flex-1">
-                                 <p className="text-sm font-bold text-gray-900">TechNova Solutions</p>
-                                 <p className="text-xs text-gray-500">Solicitud de Vendor</p>
-                             </div>
-                             <button className="text-primary text-xs font-bold hover:underline">Revisar</button>
-                         </div>
-                         <div className="flex items-center gap-3 p-3 rounded-xl border border-gray-100 hover:border-gray-300 transition-colors bg-gray-50 cursor-pointer">
-                             <div className="w-10 h-10 rounded-full bg-red-100 text-red-600 flex items-center justify-center font-bold text-xs">
-                                 <span className="material-symbols-outlined text-sm">warning</span>
-                             </div>
-                             <div className="flex-1">
-                                 <p className="text-sm font-bold text-gray-900">Disputa #992</p>
-                                 <p className="text-xs text-gray-500">Cliente Corp vs DevStudio</p>
-                             </div>
-                             <button className="text-primary text-xs font-bold hover:underline">Ver</button>
-                         </div>
-                     </div>
-                 </div>
-
-                 {/* System Health */}
-                 <div className="bg-gray-900 p-6 rounded-2xl text-white shadow-lg">
+                 
+                 {/* Platform Health Widget */}
+                 <div className="bg-gray-900 text-white rounded-2xl p-6 shadow-lg border border-gray-800">
                      <h3 className="font-bold text-lg mb-4 flex items-center gap-2">
-                         <span className="material-symbols-outlined text-green-400">check_circle</span> 
-                         Sistema Operativo
+                         <span className="material-symbols-outlined text-green-400">dns</span>
+                         Salud de Plataforma
                      </h3>
-                     <div className="space-y-4">
+                     <div className="space-y-5">
                          <div>
                              <div className="flex justify-between text-xs text-gray-400 mb-1">
-                                 <span>Uso de API (Gemini)</span>
-                                 <span>85%</span>
+                                 <span>API Latency (Gemini)</span>
+                                 <span className="text-green-400">45ms</span>
                              </div>
-                             <div className="w-full bg-gray-800 rounded-full h-1.5">
-                                 <div className="bg-blue-500 h-1.5 rounded-full" style={{width: '85%'}}></div>
+                             <div className="w-full bg-gray-800 rounded-full h-1.5 overflow-hidden">
+                                 <div className="bg-green-500 h-1.5 rounded-full" style={{width: '20%'}}></div>
                              </div>
                          </div>
                          <div>
                              <div className="flex justify-between text-xs text-gray-400 mb-1">
-                                 <span>Almacenamiento</span>
-                                 <span>42%</span>
+                                 <span>Token Usage (Quota)</span>
+                                 <span className="text-yellow-400">78%</span>
                              </div>
-                             <div className="w-full bg-gray-800 rounded-full h-1.5">
-                                 <div className="bg-purple-500 h-1.5 rounded-full" style={{width: '42%'}}></div>
+                             <div className="w-full bg-gray-800 rounded-full h-1.5 overflow-hidden">
+                                 <div className="bg-yellow-500 h-1.5 rounded-full" style={{width: '78%'}}></div>
+                             </div>
+                         </div>
+                         <div>
+                             <div className="flex justify-between text-xs text-gray-400 mb-1">
+                                 <span>Error Rate (5xx)</span>
+                                 <span className="text-green-400">0.02%</span>
+                             </div>
+                             <div className="w-full bg-gray-800 rounded-full h-1.5 overflow-hidden">
+                                 <div className="bg-green-500 h-1.5 rounded-full" style={{width: '2%'}}></div>
+                             </div>
+                         </div>
+                         <div>
+                             <div className="flex justify-between text-xs text-gray-400 mb-1">
+                                 <span>Live Streams (Concurrent)</span>
+                                 <span className="text-blue-400">142</span>
+                             </div>
+                             <div className="w-full bg-gray-800 rounded-full h-1.5 overflow-hidden">
+                                 <div className="bg-blue-500 h-1.5 rounded-full" style={{width: '45%'}}></div>
                              </div>
                          </div>
                      </div>
                  </div>
-             </div>
-         </div>
 
-         {/* Recent Activity Feed */}
-         <div className="bg-white rounded-2xl border border-gray-200 p-6 shadow-sm">
-             <div className="flex justify-between items-center mb-6">
-                 <h3 className="font-bold text-gray-900">Actividad del Sistema</h3>
-                 <button className="text-gray-400 hover:text-gray-900"><span className="material-symbols-outlined">more_horiz</span></button>
-             </div>
-             <div className="space-y-6 relative pl-4 border-l border-gray-100">
-                 <div className="relative">
-                     <div className="absolute -left-[21px] top-1 w-2.5 h-2.5 rounded-full bg-green-500 border-2 border-white"></div>
-                     <p className="text-sm text-gray-900"><span className="font-bold">Pago completado</span>: Proyecto Alpha liberó $5,000 a QuantumLeap AI.</p>
-                     <p className="text-xs text-gray-400 mt-0.5">Hace 15 min</p>
+                 {/* Action Queue */}
+                 <div className="bg-white rounded-2xl border border-gray-200 p-6 shadow-sm">
+                     <div className="flex justify-between items-center mb-4">
+                         <h3 className="font-bold text-gray-900">Cola de Moderación</h3>
+                         <span className="bg-orange-100 text-orange-800 text-xs font-bold px-2 py-0.5 rounded-full">3</span>
+                     </div>
+                     <div className="space-y-2">
+                         <div className="p-3 border border-gray-100 rounded-lg hover:border-gray-300 cursor-pointer bg-gray-50" onClick={() => navigate('/admin/users')}>
+                             <div className="flex justify-between">
+                                 <span className="text-xs font-bold text-gray-500 uppercase">Verificación</span>
+                                 <span className="text-[10px] text-gray-400">Hace 2h</span>
+                             </div>
+                             <p className="font-bold text-sm text-gray-900 mt-1">TechNova Solutions</p>
+                             <p className="text-xs text-gray-500">Documentación fiscal pendiente de revisión.</p>
+                         </div>
+                         <div className="p-3 border border-red-100 bg-red-50/50 rounded-lg hover:border-red-300 cursor-pointer" onClick={() => navigate('/admin/disputes')}>
+                             <div className="flex justify-between">
+                                 <span className="text-xs font-bold text-red-500 uppercase">Disputa</span>
+                                 <span className="text-[10px] text-gray-400">Hace 4h</span>
+                             </div>
+                             <p className="font-bold text-sm text-gray-900 mt-1">Proyecto Beta</p>
+                             <p className="text-xs text-gray-500">Cliente solicita arbitraje.</p>
+                         </div>
+                     </div>
                  </div>
-                 <div className="relative">
-                     <div className="absolute -left-[21px] top-1 w-2.5 h-2.5 rounded-full bg-blue-500 border-2 border-white"></div>
-                     <p className="text-sm text-gray-900"><span className="font-bold">Nuevo usuario</span>: Retail X se registró como Cliente.</p>
-                     <p className="text-xs text-gray-400 mt-0.5">Hace 1 hora</p>
-                 </div>
-                 <div className="relative">
-                     <div className="absolute -left-[21px] top-1 w-2.5 h-2.5 rounded-full bg-gray-300 border-2 border-white"></div>
-                     <p className="text-sm text-gray-900"><span className="font-bold">Login fallido</span>: Múltiples intentos desde IP sospechosa (bloqueada).</p>
-                     <p className="text-xs text-gray-400 mt-0.5">Hace 3 horas</p>
-                 </div>
+
              </div>
          </div>
       </div>
