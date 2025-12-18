@@ -18,6 +18,21 @@ export interface Company {
   phone: string;
   website: string;
   portfolio: PortfolioItem[];
+  // New SMB Fields
+  pricing?: PricingModel;
+  integrations?: string[]; // Simplified to string array for now (e.g. ['Shopify', 'Slack'])
+  useCases?: UseCase[];
+}
+
+export interface PricingModel {
+  type: 'Free' | 'Freemium' | 'Paid' | 'Contact';
+  startingAt?: string;
+  description?: string;
+}
+
+export interface UseCase {
+  title: string;
+  description: string;
 }
 
 export interface PortfolioItem {

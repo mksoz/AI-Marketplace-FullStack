@@ -58,6 +58,15 @@ Panel de supervisión global.
 *   **Resolución de Disputas**: Sistema asistido por IA que analiza contratos y evidencias para sugerir veredictos (Reembolso vs. Pago).
 *   **Gestión de Usuarios**: ABM (Alta, Baja, Modificación) de usuarios con capacidad de aprobar nuevos vendors manualmente.
 
+### 3.5 Mejoras de Experiencia Móvil (Responsive UX)
+El sistema ha sido optimizado para dispositivos móviles y tabletas:
+*   **Navegación Móvil**: Menú lateral adaptable ("Hamburger Menu") y barras de navegación inferiores/superiores adhesivas.
+*   **Chat Optimizado**:
+    *   **Vista Master-Detail**: En móviles, la lista de chats y la conversación se muestran en vistas separadas para maximizar el espacio.
+    *   **Widget Flotante**: El asistente de IA es arrastrable (limitado al margen izquierdo para evitar bloqueos) y se ajusta verticalmente para no cortar el contenido.
+*   **Gestión de Archivos Touch**: La navegación por carpetas soporta "Single Tap" en móviles en lugar del doble clic de escritorio.
+*   **Modales Responsivos**: Las fichas de empresas y detalles se abren como "hojas inferiores" o modales completos en pantallas pequeñas.
+
 ---
 
 ## 4. Estructura del Proyecto
