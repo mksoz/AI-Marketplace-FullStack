@@ -2,7 +2,6 @@ import React, { useState, useEffect } from 'react';
 import Modal from './Modal';
 import Button from './Button';
 import TemplateRenderer from './TemplateRenderer';
-import ContractViewer from './ContractViewer';
 import ContractNegotiation from './ContractNegotiation';
 import api from '../services/api';
 import { useNavigate } from 'react-router-dom';

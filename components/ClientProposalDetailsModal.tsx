@@ -1,7 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import Modal from './Modal';
 import TemplateRenderer from './TemplateRenderer';
-import ContractViewer from './ContractViewer';
 import ContractNegotiation from './ContractNegotiation';
 import api from '../services/api';
 
