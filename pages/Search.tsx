@@ -7,6 +7,7 @@ import Modal from '../components/Modal';
 import { MOCK_COMPANIES } from '../constants';
 import { Company } from '../types';
 import { sendMessageToGemini } from '../services/geminiService';
+import { vendorService } from '../services/vendorService';
 
 const Search: React.FC = () => {
   const [searchParams] = useSearchParams();
@@ -31,11 +32,14 @@ const Search: React.FC = () => {
 
   // Filter State
   const [isFilterModalOpen, setIsFilterModalOpen] = useState(false);
-  const [filteredCompanies, setFilteredCompanies] = useState<Company[]>(MOCK_COMPANIES);
+  const [companies, setCompanies] = useState<Company[]>([]);
+  const [filteredCompanies, setFilteredCompanies] = useState<Company[]>([]);
   const [activeFilters, setActiveFilters] = useState<{ industries: string[], teamSize: string[] }>({
     industries: [],
     teamSize: []
   });
+
+  const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
     chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -45,9 +49,63 @@ const Search: React.FC = () => {
     sessionStorage.setItem('ai_dev_connect_chat_history', JSON.stringify(chatMessages));
   }, [chatMessages]);
 
+  // Load Vendors from API
+  useEffect(() => {
+    const loadVendors = async () => {
+      try {
+        setIsLoading(true);
+        const data = await vendorService.getAllVendors();
+
+        // Map Backend Data to Frontend Company Interface
+        const mappedCompanies: Company[] = data.map((v: any) => ({
+          id: v.id,
+          name: v.companyName || 'Agencia Sin Nombre',
+          slogan: v.bio?.substring(0, 50) + '...' || 'Expertos en IA',
+          description: v.bio || 'Sin descripción',
+          rating: 4.8, // Mock
+          reviews: 12, // Mock 
+          logo: `https://ui-avatars.com/api/?name=${v.companyName}&background=random`,
+          banner: 'https://picsum.photos/seed/ai/800/300', // Mock
+          tags: v.skills || ['AI', 'Development'],
+          specialties: v.skills || [],
+          industries: ['Technology', 'SaaS'], // Mock
+          projects: 5, // Mock
+          teamSize: '11-50', // Mock
+          founded: '2020', // Mock
+          location: 'Remote', // Mock
+          email: v.user?.email, // user is included in the findMany
+          phone: '',
+          website: '',
+          portfolio: [],
+          pricing: { type: 'Contact' }
+        }));
+
+        setCompanies(mappedCompanies);
+
+      } catch (error) {
+        console.error("Failed to load vendors", error);
+        setCompanies([]); // Clear if error, don't show mocks if user wants strict DB View
+      } finally {
+        setIsLoading(false);
+      }
+    };
+    loadVendors();
+  }, []);
+
   // Filter Logic
   useEffect(() => {
-    let result = MOCK_COMPANIES;
+    let result = companies;
+
+    // Filter by Initial Query (Search Term)
+    if (initialQuery) {
+      const q = initialQuery.toLowerCase();
+      result = result.filter(c =>
+        c.name.toLowerCase().includes(q) ||
+        c.description.toLowerCase().includes(q) ||
+        c.specialties.some(s => s.toLowerCase().includes(q)) ||
+        c.tags.some(t => t.toLowerCase().includes(q))
+      );
+    }
 
     // Filter by Active Filters
     if (activeFilters.industries.length > 0) {
@@ -58,7 +116,7 @@ const Search: React.FC = () => {
     }
 
     setFilteredCompanies(result);
-  }, [activeFilters]);
+  }, [activeFilters, companies, initialQuery]);
 
   const handleCompanyClick = (company: Company) => {
     if (selectedCompany?.id === company.id) {
@@ -81,7 +139,7 @@ const Search: React.FC = () => {
   };
 
   const handleProposalRedirect = (companyId: string) => {
-    navigate(`/proposal/${companyId}`);
+    navigate(`/company/${companyId}?openModal=true`);
   };
 
   const toggleFilter = (type: 'industries' | 'teamSize', value: string) => {
@@ -112,8 +170,8 @@ const Search: React.FC = () => {
   };
 
   // Extract all unique options for filters
-  const allIndustries = Array.from(new Set(MOCK_COMPANIES.flatMap(c => c.industries)));
-  const allTeamSizes = Array.from(new Set(MOCK_COMPANIES.map(c => c.teamSize)));
+  const allIndustries = Array.from(new Set(companies.flatMap(c => c.industries))) as string[];
+  const allTeamSizes = Array.from(new Set(companies.map(c => c.teamSize))) as string[];
 
   const [isMobileChatOpen, setIsMobileChatOpen] = useState(false);
 

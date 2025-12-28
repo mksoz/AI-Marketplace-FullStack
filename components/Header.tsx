@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
+import { authService } from '../services/authService';
 import Button from './Button';
 import Modal from './Modal';
 
@@ -16,6 +17,7 @@ const Header: React.FC<HeaderProps> = ({ simple = false }) => {
   const [user, setUser] = useState<{ name: string, avatar: string, role: 'client' | 'vendor' | 'admin' } | null>(null);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
   const [loginError, setLoginError] = useState('');
 
   // Dropdown States
@@ -45,39 +47,38 @@ const Header: React.FC<HeaderProps> = ({ simple = false }) => {
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
-  const handleLogin = () => {
-    if (email === 'cliente' && password === 'cliente') {
+  const handleLogin = async () => {
+    try {
+      setLoginError('');
+      const data = await authService.login(email, password);
+      // Data contains { message, token, user }
+
+      // Transform backend user format to frontend format if needed
+      // Backend: { id, email, role }
+      // Frontend expects: { name, avatar, role }
+      // ideally backend should return name/avatar. For now we mock name/avatar based on role if missing.
+
       const userData = {
-        name: 'Cliente Corp',
-        avatar: 'https://lh3.googleusercontent.com/aida-public/AB6AXuD56sMogw_VBB9yDp-jxxYeihYrC8RGmccLUN9_8TyhtQFMfYRISR5MkcUL3DhYdjP1W0idTNuYYx4IYzTgsCsrrcJaTze-5aPqLr5-AdStPpGbPg-2H_HeF5zIOU2rNNB5Lxf5iOdEDlFBsR52qtxTSD2vGaLIYzxsMLLYLyKYXQTRRtzfZLohcIfqB5u2JzB7FilkC1Z1O-blivYoU_3uGvwBDlTeW3TCocCvcIy_2FoXiX5_TXgdkdB_hgJ3-uGTBLmqDSTeAU8',
-        role: 'client' as const
+        ...data.user,
+        name: data.user.email.split('@')[0], // Fallback name
+        avatar: `https://ui-avatars.com/api/?name=${data.user.email}&background=random`,
+        role: data.user.role.toLowerCase() as 'client' | 'vendor' | 'admin'
       };
+
+      // authService already sets token/user in localStorage, but we might want to standardize the key 'ai_dev_user' used by this app vs 'user' used by authService
+      // The app uses 'ai_dev_user'. Let's sync.
       localStorage.setItem('ai_dev_user', JSON.stringify(userData));
+
       setUser(userData);
       setIsLoginOpen(false);
-      navigate('/client/dashboard');
-    } else if (email === 'vendor' && password === 'vendor') {
-      const userData = {
-        name: 'QuantumLeap AI',
-        avatar: 'https://picsum.photos/id/40/200/200',
-        role: 'vendor' as const
-      };
-      localStorage.setItem('ai_dev_user', JSON.stringify(userData));
-      setUser(userData);
-      setIsLoginOpen(false);
-      navigate('/vendor/dashboard');
-    } else if (email === 'admin' && password === 'admin') {
-      const userData = {
-        name: 'Super Admin',
-        avatar: 'https://ui-avatars.com/api/?name=Super+Admin&background=000&color=fff',
-        role: 'admin' as const
-      };
-      localStorage.setItem('ai_dev_user', JSON.stringify(userData));
-      setUser(userData);
-      setIsLoginOpen(false);
-      navigate('/admin/dashboard');
-    } else {
-      setLoginError('Credenciales incorrectas.');
+
+      if (userData.role === 'client') navigate('/client/dashboard');
+      else if (userData.role === 'vendor') navigate('/vendor/dashboard');
+      else if (userData.role === 'admin') navigate('/admin/dashboard');
+
+    } catch (error: any) {
+      console.error(error);
+      setLoginError(error.response?.data?.message || 'Error al iniciar sesión');
     }
   };
 
@@ -346,13 +347,22 @@ const Header: React.FC<HeaderProps> = ({ simple = false }) => {
             onChange={(e) => setEmail(e.target.value)}
             className="w-full px-4 py-3 rounded-lg border border-gray-300 bg-white text-gray-900 focus:ring-2 focus:ring-primary focus:border-transparent outline-none transition-all"
           />
-          <input
-            type="password"
-            placeholder="Contraseña"
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            className="w-full px-4 py-3 rounded-lg border border-gray-300 bg-white text-gray-900 focus:ring-2 focus:ring-primary focus:border-transparent outline-none transition-all"
-          />
+          <div className="relative">
+            <input
+              type={showPassword ? 'text' : 'password'}
+              placeholder="Contraseña"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              className="w-full px-4 py-3 rounded-lg border border-gray-300 bg-white text-gray-900 focus:ring-2 focus:ring-primary focus:border-transparent outline-none transition-all pr-10"
+            />
+            <button
+              type="button"
+              onClick={() => setShowPassword(!showPassword)}
+              className="absolute top-1/2 -translate-y-1/2 right-3 text-gray-400 hover:text-gray-600 focus:outline-none flex items-center"
+            >
+              <span className="material-symbols-outlined text-xl">{showPassword ? 'visibility_off' : 'visibility'}</span>
+            </button>
+          </div>
           <Button fullWidth onClick={handleLogin}>Entrar</Button>
           <div className="flex items-center gap-4 my-2">
             <div className="h-px bg-gray-200 flex-1"></div>

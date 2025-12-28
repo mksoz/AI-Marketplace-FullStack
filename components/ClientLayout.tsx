@@ -95,8 +95,7 @@ const ClientLayout: React.FC<ClientLayoutProps> = ({ children, fullHeight = fals
     {
       label: 'Mensajes',
       path: '/client/messages',
-      icon: 'chat',
-      badge: 3
+      icon: 'chat'
     },
     {
       label: 'Notificaciones',
@@ -223,9 +222,6 @@ const ClientLayout: React.FC<ClientLayoutProps> = ({ children, fullHeight = fals
                           <span className={`material-symbols-outlined text-[20px] ${isItemActive ? 'filled' : ''}`}>{item.icon}</span>
                           {item.label}
                         </div>
-                        {item.badge && (
-                          <span className="bg-primary text-white text-[10px] font-bold px-2 py-0.5 rounded-full shadow-sm">{item.badge}</span>
-                        )}
                       </Link>
 
                       {hasSubsections && (

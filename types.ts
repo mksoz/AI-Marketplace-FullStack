@@ -58,3 +58,9 @@ export enum ViewState {
   SUPPORT = 'SUPPORT',
   SIGNUP = 'SIGNUP',
 }
+
+export enum UserRole {
+  CLIENT = 'CLIENT',
+  VENDOR = 'VENDOR',
+  ADMIN = 'ADMIN'
+}

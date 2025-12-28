@@ -76,8 +76,7 @@ const VendorLayout: React.FC<VendorLayoutProps> = ({ children, fullHeight = fals
     {
       label: 'Mensajes',
       path: '/vendor/messages',
-      icon: 'chat',
-      badge: 5
+      icon: 'chat'
     },
     {
       label: 'Notificaciones',
@@ -185,9 +184,6 @@ const VendorLayout: React.FC<VendorLayoutProps> = ({ children, fullHeight = fals
                       <span className={`material-symbols-outlined text-[20px] ${isItemActive ? 'filled' : ''}`}>{item.icon}</span>
                       {item.label}
                     </div>
-                    {item.badge && (
-                      <span className="bg-primary text-white text-[10px] font-bold px-2 py-0.5 rounded-full shadow-sm">{item.badge}</span>
-                    )}
                   </Link>
                 );
               })}

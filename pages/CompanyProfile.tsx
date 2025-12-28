@@ -1,15 +1,75 @@
-import React from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import React, { useState, useEffect } from 'react';
+import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import Header from '../components/Header';
 import Footer from '../components/Footer';
 import Button from '../components/Button';
 import FAQWidget from '../components/FAQWidget';
+import ProposalSubmissionModal from '../components/ProposalSubmissionModal';
+import api from '../services/api';
 import { MOCK_COMPANIES } from '../constants';
 
 const CompanyProfile: React.FC = () => {
    const { id } = useParams();
    const navigate = useNavigate();
-   const company = MOCK_COMPANIES.find(c => c.id === id) || MOCK_COMPANIES[0];
+   const [searchParams] = useSearchParams();
+
+   const [company, setCompany] = useState<any>(null);
+   const [loading, setLoading] = useState(true);
+   const [isModalOpen, setIsModalOpen] = useState(false);
+
+   useEffect(() => {
+      if (searchParams.get('openModal') === 'true') {
+         setIsModalOpen(true);
+      }
+   }, [searchParams]);
+
+   useEffect(() => {
+      const fetchVendor = async () => {
+         if (!id) return;
+         // Check if it's a mock ID first (for legacy support)
+         const mock = MOCK_COMPANIES.find(c => c.id === id);
+         if (mock) {
+            setCompany({ ...mock, isMock: true });
+            setLoading(false);
+            return;
+         }
+
+         try {
+            const response = await api.get(`/vendors/${id}`);
+            setCompany(response.data);
+         } catch (error) {
+            console.error("Failed to fetch vendor", error);
+         } finally {
+            setLoading(false);
+         }
+      };
+
+      fetchVendor();
+   }, [id]);
+
+   if (loading) {
+      return <div className="min-h-screen flex items-center justify-center">Loading...</div>;
+   }
+
+   if (!company) {
+      return <div className="min-h-screen flex items-center justify-center">Company not found</div>;
+   }
+
+   // Normalize data structure between Mock and Real
+   const displayCompany = company.isMock ? company : {
+      id: company.id, // VendorProfile ID
+      name: company.companyName,
+      slogan: company.bio?.substring(0, 50) + '...',
+      description: company.bio,
+      founded: "2020",
+      teamSize: "10-20",
+      location: "Remote",
+      logo: "https://ui-avatars.com/api/?name=" + (company.companyName || 'Vendor') + "&background=random&size=200",
+      useCases: company.skills?.map((s: string) => ({ title: s, description: 'Expertise in ' + s })) || [],
+      integrations: ["Slack", "GitHub"],
+      portfolio: [],
+      templates: company.templates || []
+   };
 
    return (
       <div className="min-h-screen flex flex-col bg-white">
@@ -24,16 +84,16 @@ const CompanyProfile: React.FC = () => {
 
                {/* Header Section */}
                <div className="flex flex-col md:flex-row gap-8 items-start mb-12">
-                  <img src={company.logo} alt={company.name} className="w-32 h-32 rounded-2xl border border-gray-100 shadow-sm object-cover" />
+                  <img src={displayCompany.logo} alt={displayCompany.name} className="w-32 h-32 rounded-2xl border border-gray-100 shadow-sm object-cover" />
                   <div className="flex-1">
-                     <h1 className="text-3xl md:text-4xl font-bold text-dark mb-2">{company.name}</h1>
-                     <p className="text-xl text-gray-500 mb-4">{company.slogan}</p>
+                     <h1 className="text-3xl md:text-4xl font-bold text-dark mb-2">{displayCompany.name}</h1>
+                     <p className="text-xl text-gray-500 mb-4">{displayCompany.slogan}</p>
                      <div className="flex flex-wrap gap-4 text-sm text-gray-600 mb-6">
-                        <span className="flex items-center gap-1"><span className="material-symbols-outlined text-lg">calendar_today</span> Founded {company.founded}</span>
-                        <span className="flex items-center gap-1"><span className="material-symbols-outlined text-lg">group</span> {company.teamSize} Employees</span>
-                        <span className="flex items-center gap-1"><span className="material-symbols-outlined text-lg">location_on</span> {company.location}</span>
+                        <span className="flex items-center gap-1"><span className="material-symbols-outlined text-lg">calendar_today</span> Founded {displayCompany.founded}</span>
+                        <span className="flex items-center gap-1"><span className="material-symbols-outlined text-lg">group</span> {displayCompany.teamSize} Employees</span>
+                        <span className="flex items-center gap-1"><span className="material-symbols-outlined text-lg">location_on</span> {displayCompany.location}</span>
                      </div>
-                     <Button size="lg" onClick={() => navigate(`/proposal/${company.id}`)}>Enviar Propuesta de Proyecto</Button>
+                     <Button size="lg" onClick={() => setIsModalOpen(true)}>Enviar Propuesta de Proyecto</Button>
                   </div>
                </div>
 
@@ -42,14 +102,14 @@ const CompanyProfile: React.FC = () => {
                   <div className="lg:col-span-2 space-y-12">
                      <section>
                         <h2 className="text-2xl font-bold mb-4">Sobre la empresa</h2>
-                        <p className="text-gray-600 leading-relaxed text-lg">{company.description}</p>
+                        <p className="text-gray-600 leading-relaxed text-lg">{displayCompany.description}</p>
                      </section>
 
-                     {/* Dynamic Use Cases / Services */}
+                     {/* Dynamic Use Cases */}
                      <section>
-                        <h2 className="text-2xl font-bold mb-6">Casos de Uso</h2>
+                        <h2 className="text-2xl font-bold mb-6">Servicios & Casos de Uso</h2>
                         <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
-                           {company.useCases ? company.useCases.map((useCase, i) => (
+                           {displayCompany.useCases ? displayCompany.useCases.map((useCase: any, i: number) => (
                               <div key={i} className="flex gap-4 p-4 rounded-xl bg-gray-50 border border-gray-100 hover:shadow-md transition-shadow">
                                  <span className="material-symbols-outlined text-primary text-3xl">lightbulb</span>
                                  <div>
@@ -58,39 +118,15 @@ const CompanyProfile: React.FC = () => {
                                  </div>
                               </div>
                            )) : (
-                              // Fallback for companies without useCases (legacy support)
-                              ['Natural Language Processing', 'Computer Vision', 'Predictive Analytics', 'Machine Learning'].map((service, i) => (
-                                 <div key={i} className="flex gap-4 p-4 rounded-xl bg-gray-50 border border-gray-100">
-                                    <span className="material-symbols-outlined text-primary text-3xl">verified</span>
-                                    <div>
-                                       <h3 className="font-bold text-dark">{service}</h3>
-                                       <p className="text-sm text-gray-500 mt-1">Soluciones avanzadas para tu negocio.</p>
-                                    </div>
-                                 </div>
-                              ))
+                              <p className="text-gray-500">No hay servicios listados.</p>
                            )}
                         </div>
                      </section>
 
-                     {/* Integrations Section */}
-                     {company.integrations && (
-                        <section>
-                           <h2 className="text-2xl font-bold mb-6">Integraciones</h2>
-                           <div className="flex flex-wrap gap-3">
-                              {company.integrations.map((integration, i) => (
-                                 <span key={i} className="px-4 py-2 rounded-full bg-white border border-gray-200 text-gray-700 font-medium shadow-sm flex items-center gap-2">
-                                    <span className="material-symbols-outlined text-gray-400 text-sm">extension</span>
-                                    {integration}
-                                 </span>
-                              ))}
-                           </div>
-                        </section>
-                     )}
-
                      <section>
                         <h2 className="text-2xl font-bold mb-6">Portafolio</h2>
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                           {company.portfolio.length > 0 ? company.portfolio.map(item => (
+                           {displayCompany.portfolio && displayCompany.portfolio.length > 0 ? displayCompany.portfolio.map((item: any) => (
                               <div key={item.id} className="group cursor-pointer">
                                  <div className="rounded-xl overflow-hidden mb-3">
                                     <img src={item.image} alt={item.title} className="w-full aspect-video object-cover transition-transform duration-500 group-hover:scale-105" />
@@ -98,58 +134,25 @@ const CompanyProfile: React.FC = () => {
                                  <p className="text-sm text-gray-500 mb-1">Cliente: {item.client}</p>
                                  <h3 className="font-bold text-lg group-hover:text-primary transition-colors">{item.title}</h3>
                               </div>
-                           )) : <p className="text-gray-500 italic">No hay proyectos públicos disponibles.</p>}
+                           )) : (
+                              <div className="col-span-2 text-center py-8 bg-gray-50 rounded-xl">
+                                 <p className="text-gray-500 italic">No hay proyectos en el portafolio público.</p>
+                              </div>
+                           )}
                         </div>
                      </section>
                   </div>
-
-                  {/* Sidebar Contact */}
-                  <aside className="space-y-8">
-                     {/* Pricing Widget (New for SMB) */}
-                     {company.pricing && (
-                        <div className="p-6 rounded-2xl border border-gray-200 shadow-card bg-white mb-6">
-                           <h3 className="text-xl font-bold mb-4 flex items-center gap-2">
-                              <span className="material-symbols-outlined text-primary">payments</span>
-                              Pricing
-                           </h3>
-                           <div className="bg-gray-50 rounded-xl p-4 text-center mb-4">
-                              <span className="block text-gray-500 text-sm mb-1 uppercase tracking-wider font-semibold">{company.pricing.type}</span>
-                              <span className="block text-3xl font-bold text-dark">{company.pricing.startingAt || 'Contact'}</span>
-                           </div>
-                           {company.pricing.description && (
-                              <p className="text-sm text-gray-600 text-center mb-0">{company.pricing.description}</p>
-                           )}
-                        </div>
-                     )}
-
-                     <div className="p-6 rounded-2xl border border-gray-200 shadow-card bg-white sticky top-24">
-                        <h3 className="text-xl font-bold mb-6">Información de Contacto</h3>
-                        <ul className="space-y-4">
-                           <li className="flex gap-3 items-center text-gray-600">
-                              <span className="material-symbols-outlined text-gray-400">mail</span>
-                              <a href={`mailto:${company.email}`} className="hover:text-primary transition-colors">{company.email}</a>
-                           </li>
-                           <li className="flex gap-3 items-center text-gray-600">
-                              <span className="material-symbols-outlined text-gray-400">phone</span>
-                              <span>{company.phone}</span>
-                           </li>
-                           <li className="flex gap-3 items-center text-gray-600">
-                              <span className="material-symbols-outlined text-gray-400">language</span>
-                              <a href={`https://${company.website}`} target="_blank" rel="noreferrer" className="hover:text-primary transition-colors">{company.website}</a>
-                           </li>
-                           <li className="flex gap-3 items-center text-gray-600">
-                              <span className="material-symbols-outlined text-gray-400">map</span>
-                              <span>{company.location}</span>
-                           </li>
-                        </ul>
-                        <div className="mt-6 rounded-xl bg-gray-100 h-48 w-full flex items-center justify-center text-gray-400 text-sm">
-                           Map Placeholder
-                        </div>
-                     </div>
-                  </aside>
                </div>
             </div>
          </main>
+
+         <ProposalSubmissionModal
+            isOpen={isModalOpen}
+            onClose={() => setIsModalOpen(false)}
+            vendorId={displayCompany.id}
+            vendorName={displayCompany.name}
+            templates={displayCompany.templates || []}
+         />
 
          <Footer />
          <FAQWidget />
@@ -158,3 +161,5 @@ const CompanyProfile: React.FC = () => {
 };
 
 export default CompanyProfile;
+
+
