@@ -324,12 +324,15 @@ const Header: React.FC<HeaderProps> = ({ simple = false }) => {
           <h4 className="text-xl font-bold text-gray-800">Bienvenido de nuevo</h4>
           <div className="p-3 bg-gray-50 rounded-lg text-xs text-gray-500 space-y-1">
             <p><strong>Demo Access:</strong></p>
-            <div className="flex justify-between">
-              <span>Cliente: <code>cliente / cliente</code></span>
-              <span>Vendor: <code>vendor / vendor</code></span>
-            </div>
-            <div className="flex justify-between border-t border-gray-200 pt-1 mt-1">
-              <span>Admin: <code>admin / admin</code></span>
+            <div className="flex flex-col gap-2">
+              <div className="flex justify-between">
+                <span>Cliente: <code>client@example.com</code></span>
+                <span>Clave: <code>password123</code></span>
+              </div>
+              <div className="flex justify-between border-t border-gray-100 pt-1">
+                <span>Vendor: <code>vendor1@example.com</code></span>
+                <span>Clave: <code>password123</code></span>
+              </div>
             </div>
           </div>
 

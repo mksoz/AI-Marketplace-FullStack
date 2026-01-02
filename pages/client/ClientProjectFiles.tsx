@@ -1,556 +1,365 @@
-import React, { useState, useRef, useEffect } from 'react';
-import ClientLayout from '../../components/ClientLayout';
-import Modal from '../../components/Modal';
+import React, { useState } from 'react';
 
-interface Folder {
-    id: string;
-    name: string;
-    filesCount: number;
-    updated: string;
+interface ClientProjectFilesProps {
+    project: any;
 }
 
-interface FileItem {
-    id: string;
-    name: string;
-    type: string;
-    size: string;
-    date: string;
-    uploader: string;
-}
-
-const ClientProjectFiles: React.FC = () => {
+const ClientProjectFiles: React.FC<ClientProjectFilesProps> = ({ project }) => {
     // View Mode: Documents (Standard) vs Repository (GitHub)
     const [viewMode, setViewMode] = useState<'documents' | 'repository'>('documents');
 
     // Navigation State
-    const [currentFolder, setCurrentFolder] = useState<Folder | null>(null);
-
-    // Search State
-    const [isSearchOpen, setIsSearchOpen] = useState(false);
-    const [searchQuery, setSearchQuery] = useState('');
-    const [selectedProject, setSelectedProject] = useState({
-        name: 'Motor de Recomendación con IA',
-        vendor: 'QuantumLeap AI',
-        id: '1'
-    });
-    const searchRef = useRef<HTMLDivElement>(null);
+    const [currentFolder, setCurrentFolder] = useState<any | null>(null);
 
     // Interaction State
     const [isDragging, setIsDragging] = useState(false);
-    const [itemToDelete, setItemToDelete] = useState<{ type: 'folder' | 'file', id: string, name: string } | null>(null);
-    const [activeMenuId, setActiveMenuId] = useState<string | null>(null);
+    const [showNewFolderModal, setShowNewFolderModal] = useState(false);
+    const [newFolderName, setNewFolderName] = useState('');
+    const [folderMenu, setFolderMenu] = useState<{ id: string, x: number, y: number } | null>(null);
+    const [renamingFolder, setRenamingFolder] = useState<{ id: string, name: string } | null>(null);
 
-    // Mock Data
-    const projects = [
-        { id: '1', name: 'Motor de Recomendación con IA', vendor: 'QuantumLeap AI', status: 'Activo' },
-        { id: '2', name: 'Chatbot de Soporte al Cliente', vendor: 'InnovateAI Corp', status: 'Activo' },
-    ];
+    // Derived Data
+    // Ideally this comes from props or a fetch, for now using local copy or props
+    const [localFolders, setLocalFolders] = useState<any[]>(project.folders || []);
+    const [localFiles, setLocalFiles] = useState<any[]>(project.files || []);
 
-    const folders: Folder[] = [
-        { id: 'f1', name: 'Documentación Legal', filesCount: 3, updated: '2 días' },
-        { id: 'f2', name: 'Diseños UI/UX', filesCount: 12, updated: '5 horas' },
-        { id: 'f3', name: 'Especificaciones Técnicas', filesCount: 5, updated: '1 semana' },
-        { id: 'f4', name: 'Entregables Finales', filesCount: 0, updated: '-' }
-    ];
+    // Sync with props if needed, but for local edits we might need local state
+    // For this demo we'll just push to local state
 
-    // Files are "mocked" to change based on folder, for demo purposes we just show same list
-    const files: FileItem[] = [
-        { id: 'fi1', name: 'Contrato_v2_Firmado.pdf', type: 'pdf', size: '2.4 MB', date: '15 Ago, 2024', uploader: 'Ana Torres' },
-        { id: 'fi2', name: 'Wireframes_Home_v3.fig', type: 'figma', size: '15 MB', date: '14 Ago, 2024', uploader: 'QuantumLeap AI' },
-        { id: 'fi3', name: 'Brief_Inicial.docx', type: 'doc', size: '1.1 MB', date: '10 Jul, 2024', uploader: 'Ana Torres' },
-        { id: 'fi4', name: 'Arquitectura_Sistema.png', type: 'img', size: '5.6 MB', date: '01 Ago, 2024', uploader: 'QuantumLeap AI' }
-    ];
-
-    const filteredProjects = projects.filter(p =>
-        p.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        p.vendor.toLowerCase().includes(searchQuery.toLowerCase())
+    const folders = project.folders || [];
+    const rootFiles = project.files || [];
+    const currentFiles = currentFolder ? (currentFolder.files || []) : rootFiles;
+    const currentSubfolders = localFolders.filter((f: any) =>
+        currentFolder ? f.parentId === currentFolder.id : !f.parentId
     );
-
-    useEffect(() => {
-        const handleClickOutside = (event: MouseEvent) => {
-            if (searchRef.current && !searchRef.current.contains(event.target as Node)) {
-                setIsSearchOpen(false);
-            }
-
-            // Close menu if clicking outside
-            if (activeMenuId && !(event.target as Element).closest('.folder-menu-trigger')) {
-                setActiveMenuId(null);
-            }
-        };
-        document.addEventListener('mousedown', handleClickOutside);
-        return () => document.removeEventListener('mousedown', handleClickOutside);
-    }, [activeMenuId]);
 
     const handleDragOver = (e: React.DragEvent) => { e.preventDefault(); setIsDragging(true); };
     const handleDragLeave = () => { setIsDragging(false); };
-    const handleDrop = (e: React.DragEvent) => { e.preventDefault(); setIsDragging(false); console.log('Dropped'); };
-
-    const handleDeleteConfirm = () => {
-        // Logic to delete itemToDelete
-        console.log('Deleting', itemToDelete);
-        setItemToDelete(null);
+    const handleDrop = (e: React.DragEvent) => {
+        e.preventDefault();
+        setIsDragging(false);
+        console.log('Dropped file in', currentFolder?.name || 'root');
+        // Logic to upload file would go here
     };
+
+    const handleCreateFolder = () => {
+        if (!newFolderName.trim()) return;
+        const newFolder = {
+            id: `new-${Date.now()}`,
+            name: newFolderName,
+            parentId: currentFolder?.id || null,
+            filesCount: 0
+        };
+        setLocalFolders([...localFolders, newFolder]);
+        setNewFolderName('');
+        setShowNewFolderModal(false);
+    };
+
+    const handleDeleteFolder = (folderId: string) => {
+        if (window.confirm('¿Estás seguro de que deseas eliminar esta carpeta?')) {
+            setLocalFolders(localFolders.filter(f => f.id !== folderId));
+        }
+        setFolderMenu(null);
+    };
+
+    const handleRenameFolder = () => {
+        if (renamingFolder && renamingFolder.name.trim()) {
+            setLocalFolders(localFolders.map(f => f.id === renamingFolder.id ? { ...f, name: renamingFolder.name } : f));
+            setRenamingFolder(null);
+        }
+    };
+
+    // Close menu on click outside
+    React.useEffect(() => {
+        const closeMenu = () => setFolderMenu(null);
+        window.addEventListener('click', closeMenu);
+        return () => window.removeEventListener('click', closeMenu);
+    }, []);
 
     const getIcon = (type: string) => {
         if (type === 'pdf') return 'picture_as_pdf';
-        if (type === 'figma' || type === 'img') return 'image';
-        if (type === 'doc') return 'description';
+        if (type === 'figma' || type === 'img' || type === 'png' || type === 'jpg') return 'image';
+        if (type === 'doc' || type === 'docx') return 'description';
         return 'insert_drive_file';
     };
 
     const getColor = (type: string) => {
         if (type === 'pdf') return 'text-red-500 bg-red-50';
         if (type === 'figma') return 'text-purple-500 bg-purple-50';
-        if (type === 'img') return 'text-blue-500 bg-blue-50';
-        if (type === 'doc') return 'text-blue-700 bg-blue-50';
+        if (type === 'img' || type === 'png' || type === 'jpg') return 'text-blue-500 bg-blue-50';
+        if (type === 'doc' || type === 'docx') return 'text-blue-700 bg-blue-50';
         return 'text-gray-500 bg-gray-50';
     };
 
-    // --- GITHUB MOCK DATA ---
+    // --- GITHUB MOCK DATA (Ideally this comes from project.repoUrl integration) ---
     const repoStats = {
-        name: 'quantum-leap/recommendation-engine',
+        name: project.repoName || 'repo-not-linked',
         branch: 'main',
-        lastCommit: 'Hace 2 horas',
+        url: project.repoUrl,
+        lastCommit: 'Hace 2 horas', // Mock
         commits: 142,
         contributors: 4,
         status: 'stable',
         language: 'Python'
     };
 
-    const recentCommits = [
-        { id: 'c1', message: 'feat: Implement collaborative filtering algorithm', hash: '8a2b3c', author: 'DevTeam', time: 'Hace 2h', type: 'add' },
+    const recentCommits = [ // Mock
+        { id: 'c1', message: 'feat: Implement collaborative filtering', hash: '8a2b3c', author: 'DevTeam', time: 'Hace 2h', type: 'add' },
         { id: 'c2', message: 'fix: API endpoint latency issue', hash: '9d1e2f', author: 'TechLead', time: 'Hace 5h', type: 'fix' },
-        { id: 'c3', message: 'docs: Update API documentation for client review', hash: '4g5h6i', author: 'PM', time: 'Ayer', type: 'docs' },
-        { id: 'c4', message: 'chore: Update dependencies', hash: '7j8k9l', author: 'DevTeam', time: 'Hace 2d', type: 'chore' },
     ];
 
+    if (!project) return null;
+
     return (
-        <ClientLayout>
-            <div className="space-y-6">
+        <div className="space-y-6">
 
-                {/* Header & View Toggle */}
-                <div className="flex flex-col md:flex-row justify-between items-end md:items-center gap-4">
-                    {/* Project Selector - Compact */}
-                    <div className="relative z-20 w-full md:w-auto" ref={searchRef}>
-                        <button
-                            onClick={() => setIsSearchOpen(!isSearchOpen)}
-                            className="flex items-center gap-2 text-xl font-black text-gray-900 hover:text-gray-700 transition-colors"
-                        >
-                            {selectedProject.name}
-                            <span className="material-symbols-outlined text-gray-400">expand_more</span>
-                        </button>
-                        {isSearchOpen && (
-                            <div className="absolute top-full left-0 w-80 bg-white rounded-xl shadow-floating border border-gray-100 mt-2 p-2 animate-in fade-in zoom-in-95 duration-200">
-                                {filteredProjects.map(p => (
-                                    <button
-                                        key={p.id}
-                                        onClick={() => { setSelectedProject(p); setIsSearchOpen(false); }}
-                                        className={`w-full text-left px-3 py-2 rounded-lg flex justify-between items-center group transition-colors ${selectedProject.id === p.id ? 'bg-primary/5' : 'hover:bg-gray-50'}`}
-                                    >
-                                        <span className="text-sm font-bold text-gray-900">{p.name}</span>
-                                        {selectedProject.id === p.id && <span className="material-symbols-outlined text-primary text-sm">check</span>}
-                                    </button>
-                                ))}
-                            </div>
-                        )}
-                        <p className="text-sm text-gray-500 mt-0.5 flex items-center gap-1">
-                            by <span className="font-semibold">{selectedProject.vendor}</span>
-                        </p>
-                    </div>
-
-                    {/* View Mode Toggle */}
-                    <div className="bg-gray-100 p-1 rounded-xl flex items-center">
-                        <button
-                            onClick={() => setViewMode('documents')}
-                            className={`px-4 py-2 rounded-lg text-sm font-bold flex items-center gap-2 transition-all ${viewMode === 'documents' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}
-                        >
-                            <span className="material-symbols-outlined text-lg">folder</span> Documentos
-                        </button>
-                        <button
-                            onClick={() => setViewMode('repository')}
-                            className={`px-4 py-2 rounded-lg text-sm font-bold flex items-center gap-2 transition-all ${viewMode === 'repository' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}
-                        >
-                            <img src="https://github.githubassets.com/images/modules/logos_page/GitHub-Mark.png" className={`w-4 h-4 ${viewMode === 'repository' ? 'opacity-100' : 'opacity-50'}`} alt="GitHub" />
-                            Repositorio
-                        </button>
-                    </div>
+            {/* Header & View Toggle */}
+            <div className="flex flex-col md:flex-row justify-between items-end md:items-center gap-4">
+                <div className="flex items-center gap-2">
+                    <button
+                        onClick={() => setCurrentFolder(null)}
+                        className={`text-sm font-bold ${!currentFolder ? 'text-gray-900' : 'text-gray-500 hover:text-gray-900'}`}
+                    >
+                        Archivos
+                    </button>
+                    {currentFolder && (
+                        <>
+                            <span className="material-symbols-outlined text-gray-400 text-sm">chevron_right</span>
+                            <span className="text-sm font-bold text-gray-900">{currentFolder.name}</span>
+                        </>
+                    )}
                 </div>
 
-                {/* =======================
-            REPOSITORY VIEW (NEW) 
-           ======================= */}
-                {viewMode === 'repository' && (
-                    <div className="animate-in fade-in slide-in-from-bottom-4 duration-500 space-y-6">
-
-                        {/* Repo Health Card */}
-                        <div className="bg-gray-900 text-white rounded-2xl p-6 shadow-lg relative overflow-hidden">
-                            <div className="absolute top-0 right-0 p-8 opacity-10">
-                                <span className="material-symbols-outlined text-9xl">code</span>
-                            </div>
-
-                            <div className="relative z-10 flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
-                                <div>
-                                    <div className="flex items-center gap-2 text-gray-400 text-sm mb-1 font-mono">
-                                        <span className="material-symbols-outlined text-base">lock</span> Privado
-                                        <span>•</span>
-                                        Updated {repoStats.lastCommit}
-                                    </div>
-                                    <h2 className="text-2xl font-bold font-mono tracking-tight flex items-center gap-3">
-                                        {repoStats.name}
-                                        <span className="px-2 py-0.5 bg-gray-800 text-gray-300 text-xs rounded border border-gray-700">Public Mirror</span>
-                                    </h2>
-                                    <div className="flex items-center gap-4 mt-4">
-                                        <div className="flex items-center gap-1.5 px-3 py-1.5 bg-gray-800 rounded-lg border border-gray-700">
-                                            <span className="material-symbols-outlined text-green-400 text-sm">call_split</span>
-                                            <span className="text-sm font-mono">{repoStats.branch}</span>
-                                        </div>
-                                        <div className="flex items-center gap-1.5 px-3 py-1.5 bg-gray-800 rounded-lg border border-gray-700">
-                                            <div className="w-2 h-2 rounded-full bg-blue-400"></div>
-                                            <span className="text-sm font-mono">{repoStats.language}</span>
-                                        </div>
-                                        <div className="flex -space-x-2">
-                                            {[1, 2, 3].map(i => (
-                                                <div key={i} className="w-8 h-8 rounded-full border-2 border-gray-900 bg-gray-700 flex items-center justify-center text-xs font-bold">
-                                                    Dev
-                                                </div>
-                                            ))}
-                                            <div className="w-8 h-8 rounded-full border-2 border-gray-900 bg-gray-800 flex items-center justify-center text-xs text-gray-400 font-bold">
-                                                +2
-                                            </div>
-                                        </div>
-                                    </div>
-                                </div>
-                                <div className="text-right">
-                                    <button className="bg-white text-gray-900 px-4 py-2 rounded-lg font-bold text-sm hover:bg-gray-100 flex items-center gap-2 transition-colors">
-                                        <span className="material-symbols-outlined text-lg">open_in_new</span>
-                                        Ver en GitHub
-                                    </button>
-                                </div>
-                            </div>
-                        </div>
-
-                        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-                            {/* Activity Stream */}
-                            <div className="lg:col-span-2 space-y-4">
-                                <div className="flex justify-between items-center">
-                                    <h3 className="font-bold text-gray-900 flex items-center gap-2">
-                                        <span className="material-symbols-outlined text-primary">history</span>
-                                        Actividad Reciente
-                                    </h3>
-                                    <span className="text-xs text-gray-500 font-mono bg-gray-100 px-2 py-1 rounded">Last 7 days</span>
-                                </div>
-
-                                <div className="bg-white border border-gray-200 rounded-xl overflow-hidden shadow-sm">
-                                    <div className="bg-gray-50 px-4 py-3 border-b border-gray-200 flex justify-between items-center">
-                                        <span className="text-xs font-bold text-gray-500 uppercase">Historial de Commits</span>
-                                        <span className="text-xs font-mono text-gray-400">{repoStats.commits} commits total</span>
-                                    </div>
-                                    <div className="divide-y divide-gray-100">
-                                        {recentCommits.map((commit, i) => (
-                                            <div key={commit.id} className="p-4 hover:bg-gray-50 transition-colors group flex gap-4 items-start">
-                                                <div className={`mt-1 w-2 h-2 rounded-full flex-shrink-0 ${commit.type === 'add' ? 'bg-green-500' : commit.type === 'fix' ? 'bg-amber-500' : 'bg-blue-500'}`}></div>
-                                                <div className="flex-1 min-w-0">
-                                                    <p className="text-sm font-medium text-gray-900 font-mono truncate">{commit.message}</p>
-                                                    <div className="flex items-center gap-2 mt-1">
-                                                        <img src={`https://ui-avatars.com/api/?name=${commit.author}&background=random&size=16`} className="w-4 h-4 rounded-full" alt="author" />
-                                                        <span className="text-xs text-gray-500 font-bold">{commit.author}</span>
-                                                        <span className="text-xs text-gray-400">•</span>
-                                                        <span className="text-xs text-gray-400">{commit.time}</span>
-                                                    </div>
-                                                </div>
-                                                <div className="flex items-center gap-2">
-                                                    <span className="font-mono text-xs text-gray-500 bg-gray-100 px-2 py-1 rounded group-hover:bg-gray-200 transition-colors">
-                                                        {commit.hash}
-                                                    </span>
-                                                    <button className="text-gray-300 hover:text-primary p-1">
-                                                        <span className="material-symbols-outlined text-lg">code</span>
-                                                    </button>
-                                                </div>
-                                            </div>
-                                        ))}
-                                    </div>
-                                    <div className="p-2 text-center border-t border-gray-100">
-                                        <button className="text-xs font-bold text-gray-500 hover:text-primary py-2 w-full">Ver historial completo</button>
-                                    </div>
-                                </div>
-
-                                {/* Readme Preview */}
-                                <div className="bg-white border border-gray-200 rounded-xl overflow-hidden shadow-sm mt-6">
-                                    <div className="bg-gray-50 px-4 py-3 border-b border-gray-200 flex items-center gap-2">
-                                        <span className="material-symbols-outlined text-gray-500 text-sm">menu_book</span>
-                                        <span className="text-xs font-bold text-gray-700 uppercase">README.md</span>
-                                    </div>
-                                    <div className="p-6 prose prose-sm max-w-none text-gray-600">
-                                        <h3 className="text-gray-900 font-bold text-lg mb-2">Recommendation Engine API</h3>
-                                        <p className="mb-4">This repository contains the source code for the AI-powered recommendation system designed for Client Corp. It utilizes collaborative filtering and content-based filtering algorithms.</p>
-                                        <h4 className="text-gray-800 font-bold mb-2">Project Structure</h4>
-                                        <ul className="list-disc pl-5 space-y-1 mb-4">
-                                            <li><code>/api</code> - FastAPI endpoints</li>
-                                            <li><code>/models</code> - TensorFlow model definitions</li>
-                                            <li><code>/scripts</code> - Data preprocessing pipelines</li>
-                                        </ul>
-                                        <div className="bg-blue-50 border-l-4 border-blue-500 p-3 text-blue-700 text-xs">
-                                            <strong>Note:</strong> Sensitive data configuration files are not tracked in this repository.
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
-
-                            {/* Sidebar Stats & Tree */}
-                            <div className="space-y-6">
-                                <div className="bg-white border border-gray-200 rounded-xl p-5 shadow-sm">
-                                    <h4 className="font-bold text-gray-900 mb-4 text-sm uppercase tracking-wide">Estructura</h4>
-                                    <div className="space-y-2 font-mono text-sm text-gray-600">
-                                        <div className="flex items-center gap-2 p-1 hover:bg-gray-50 rounded cursor-pointer">
-                                            <span className="material-symbols-outlined text-blue-400 text-lg">folder</span> .github
-                                        </div>
-                                        <div className="flex items-center gap-2 p-1 hover:bg-gray-50 rounded cursor-pointer">
-                                            <span className="material-symbols-outlined text-blue-400 text-lg">folder</span> src
-                                        </div>
-                                        <div className="flex items-center gap-2 p-1 hover:bg-gray-50 rounded cursor-pointer pl-6">
-                                            <span className="material-symbols-outlined text-blue-400 text-lg">folder</span> components
-                                        </div>
-                                        <div className="flex items-center gap-2 p-1 hover:bg-gray-50 rounded cursor-pointer pl-6">
-                                            <span className="material-symbols-outlined text-blue-400 text-lg">folder</span> utils
-                                        </div>
-                                        <div className="flex items-center gap-2 p-1 hover:bg-gray-50 rounded cursor-pointer">
-                                            <span className="material-symbols-outlined text-gray-400 text-lg">description</span> .gitignore
-                                        </div>
-                                        <div className="flex items-center gap-2 p-1 hover:bg-gray-50 rounded cursor-pointer">
-                                            <span className="material-symbols-outlined text-gray-400 text-lg">description</span> README.md
-                                        </div>
-                                        <div className="flex items-center gap-2 p-1 hover:bg-gray-50 rounded cursor-pointer">
-                                            <span className="material-symbols-outlined text-yellow-500 text-lg">description</span> requirements.txt
-                                        </div>
-                                    </div>
-                                </div>
-
-                                <div className="bg-white border border-gray-200 rounded-xl p-5 shadow-sm">
-                                    <h4 className="font-bold text-gray-900 mb-4 text-sm uppercase tracking-wide">Lenguajes</h4>
-                                    <div className="space-y-3">
-                                        <div>
-                                            <div className="flex justify-between text-xs mb-1">
-                                                <span className="font-bold text-gray-700">Python</span>
-                                                <span className="text-gray-500">68%</span>
-                                            </div>
-                                            <div className="w-full bg-gray-100 rounded-full h-1.5">
-                                                <div className="bg-blue-500 h-1.5 rounded-full" style={{ width: '68%' }}></div>
-                                            </div>
-                                        </div>
-                                        <div>
-                                            <div className="flex justify-between text-xs mb-1">
-                                                <span className="font-bold text-gray-700">Jupyter Notebook</span>
-                                                <span className="text-gray-500">22%</span>
-                                            </div>
-                                            <div className="w-full bg-gray-100 rounded-full h-1.5">
-                                                <div className="bg-orange-500 h-1.5 rounded-full" style={{ width: '22%' }}></div>
-                                            </div>
-                                        </div>
-                                        <div>
-                                            <div className="flex justify-between text-xs mb-1">
-                                                <span className="font-bold text-gray-700">Shell</span>
-                                                <span className="text-gray-500">10%</span>
-                                            </div>
-                                            <div className="w-full bg-gray-100 rounded-full h-1.5">
-                                                <div className="bg-gray-500 h-1.5 rounded-full" style={{ width: '10%' }}></div>
-                                            </div>
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                )}
-
-                {/* =======================
-            DOCUMENTS VIEW (OLD) 
-           ======================= */}
-                {viewMode === 'documents' && (
-                    <div className="space-y-4 animate-in fade-in duration-300">
-
-                        {/* Header / Breadcrumb / Actions */}
-                        <div className="flex items-center justify-between">
-                            <div className="flex items-center gap-2">
-                                {currentFolder ? (
-                                    <>
-                                        <button onClick={() => setCurrentFolder(null)} className="text-gray-500 hover:text-dark font-bold text-lg">Repositorio</button>
-                                        <span className="material-symbols-outlined text-gray-400">chevron_right</span>
-                                        <h1 className="text-xl font-black text-gray-900">{currentFolder.name}</h1>
-                                    </>
-                                ) : (
-                                    <h1 className="text-2xl font-black text-gray-900">Repositorio</h1>
-                                )}
-                            </div>
-                            {/* Create Action */}
-                            {!currentFolder && (
-                                <button className="flex items-center gap-1 text-sm font-bold text-primary hover:bg-primary/5 px-3 py-2 rounded-lg transition-colors">
-                                    <span className="material-symbols-outlined text-lg">create_new_folder</span> Nueva Carpeta
-                                </button>
-                            )}
-                        </div>
-
-                        {/* Folder Grid (Root View) */}
-                        {!currentFolder && (
-                            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                                {folders.map((folder) => (
-                                    <div
-                                        key={folder.id}
-                                        onClick={() => setCurrentFolder(folder)}
-                                        className="p-4 bg-white border border-gray-200 rounded-xl hover:shadow-md transition-all cursor-pointer group relative select-none"
-                                    >
-                                        <div className="flex justify-between items-start mb-3">
-                                            <span className="material-symbols-outlined text-4xl text-amber-300 group-hover:text-amber-400 transition-colors">folder</span>
-                                            <div className="relative">
-                                                <button
-                                                    className="text-gray-400 hover:text-gray-600 p-1 rounded-full hover:bg-gray-100 folder-menu-trigger"
-                                                    onClick={(e) => { e.stopPropagation(); setActiveMenuId(activeMenuId === folder.id ? null : folder.id); }}
-                                                >
-                                                    <span className="material-symbols-outlined text-lg">more_vert</span>
-                                                </button>
-                                                {activeMenuId === folder.id && (
-                                                    <div className="absolute right-0 top-8 bg-white shadow-card border border-gray-100 rounded-lg p-1 z-10 w-32 animate-in fade-in zoom-in-95 duration-100">
-                                                        <button className="w-full text-left px-3 py-2 text-xs font-medium hover:bg-gray-50 rounded flex items-center gap-2">
-                                                            <span className="material-symbols-outlined text-sm">edit</span> Editar
-                                                        </button>
-                                                        <button
-                                                            className="w-full text-left px-3 py-2 text-xs font-medium hover:bg-red-50 text-red-600 rounded flex items-center gap-2"
-                                                            onClick={(e) => { e.stopPropagation(); setItemToDelete({ type: 'folder', id: folder.id, name: folder.name }); setActiveMenuId(null); }}
-                                                        >
-                                                            <span className="material-symbols-outlined text-sm">delete</span> Borrar
-                                                        </button>
-                                                    </div>
-                                                )}
-                                            </div>
-                                        </div>
-                                        <h3 className="font-bold text-gray-900 truncate">{folder.name}</h3>
-                                        <p className="text-xs text-gray-500 mt-1">{folder.filesCount} archivos • {folder.updated}</p>
-                                    </div>
-                                ))}
-                            </div>
-                        )}
-
-                        {/* Inside Folder View */}
-                        {currentFolder && (
-                            <div className="space-y-6 animate-in slide-in-from-right-4 fade-in duration-300">
-                                {/* Compact Drag & Drop */}
-                                <div
-                                    onDragOver={handleDragOver} onDragLeave={handleDragLeave} onDrop={handleDrop}
-                                    className={`w-full border-2 border-dashed rounded-lg p-4 flex items-center justify-center gap-4 transition-all cursor-pointer ${isDragging ? 'border-primary bg-primary/5' : 'border-gray-300 hover:bg-gray-50'}`}
-                                >
-                                    <div className="w-10 h-10 bg-blue-50 text-[#1313ec] rounded-full flex items-center justify-center flex-shrink-0">
-                                        <span className="material-symbols-outlined">cloud_upload</span>
-                                    </div>
-                                    <div>
-                                        <p className="text-sm font-bold text-gray-900">Arrastra archivos aquí para subir</p>
-                                        <p className="text-xs text-gray-500">o <span className="text-primary hover:underline">haz clic para explorar</span></p>
-                                    </div>
-                                </div>
-
-                                {/* Files List inside Folder */}
-                                <div className="bg-white rounded-xl border border-gray-200 overflow-hidden shadow-sm">
-                                    <table className="w-full text-left">
-                                        <thead className="bg-gray-50 border-b border-gray-200">
-                                            <tr>
-                                                <th className="px-6 py-3 text-xs font-semibold text-gray-500 uppercase">Nombre</th>
-                                                <th className="px-6 py-3 text-xs font-semibold text-gray-500 uppercase">Detalles</th>
-                                                <th className="px-6 py-3 text-xs font-semibold text-gray-500 uppercase text-right">Acciones</th>
-                                            </tr>
-                                        </thead>
-                                        <tbody className="divide-y divide-gray-100">
-                                            {files.map((file) => (
-                                                <tr key={file.id} className="hover:bg-gray-50 transition-colors cursor-default">
-                                                    <td className="px-6 py-3">
-                                                        <div className="flex items-center gap-3">
-                                                            <div className={`w-8 h-8 rounded-lg flex items-center justify-center ${getColor(file.type)}`}>
-                                                                <span className="material-symbols-outlined text-lg">{getIcon(file.type)}</span>
-                                                            </div>
-                                                            <span className="font-medium text-sm text-gray-900">{file.name}</span>
-                                                        </div>
-                                                    </td>
-                                                    <td className="px-6 py-3 text-xs text-gray-500">
-                                                        {file.size} • {file.date}
-                                                    </td>
-                                                    <td className="px-6 py-3 text-right">
-                                                        <div className="flex justify-end gap-1">
-                                                            <button className="p-1.5 text-gray-400 hover:text-dark rounded hover:bg-gray-200" title="Ver"><span className="material-symbols-outlined text-lg">visibility</span></button>
-                                                            <button className="p-1.5 text-gray-400 hover:text-primary rounded hover:bg-gray-200" title="Descargar"><span className="material-symbols-outlined text-lg">download</span></button>
-                                                            <button
-                                                                className="p-1.5 text-gray-400 hover:text-red-600 rounded hover:bg-red-50"
-                                                                title="Eliminar"
-                                                                onClick={() => setItemToDelete({ type: 'file', id: file.id, name: file.name })}
-                                                            >
-                                                                <span className="material-symbols-outlined text-lg">delete</span>
-                                                            </button>
-                                                        </div>
-                                                    </td>
-                                                </tr>
-                                            ))}
-                                        </tbody>
-                                    </table>
-                                </div>
-                            </div>
-                        )}
-
-                        {/* Global Recent Files (Only visible at root or separate section) */}
-                        {!currentFolder && (
-                            <div className="pt-4">
-                                <h2 className="text-lg font-bold text-gray-900 mb-4">Archivos Recientes</h2>
-                                <div className="bg-white rounded-xl border border-gray-200 overflow-hidden shadow-sm">
-                                    <table className="w-full text-left">
-                                        <thead className="bg-gray-50 border-b border-gray-200">
-                                            <tr>
-                                                <th className="px-6 py-3 text-xs font-semibold text-gray-500 uppercase">Nombre</th>
-                                                <th className="px-6 py-3 text-xs font-semibold text-gray-500 uppercase hidden sm:table-cell">Subido por</th>
-                                                <th className="px-6 py-3 text-xs font-semibold text-gray-500 uppercase text-right">Descarga</th>
-                                            </tr>
-                                        </thead>
-                                        <tbody className="divide-y divide-gray-100">
-                                            {files.slice(0, 3).map((file, i) => (
-                                                <tr key={i} className="hover:bg-gray-50 transition-colors">
-                                                    <td className="px-6 py-3">
-                                                        <div className="flex items-center gap-3">
-                                                            <div className={`w-8 h-8 rounded-lg flex items-center justify-center ${getColor(file.type)}`}>
-                                                                <span className="material-symbols-outlined text-lg">{getIcon(file.type)}</span>
-                                                            </div>
-                                                            <div>
-                                                                <p className="font-medium text-sm text-gray-900">{file.name}</p>
-                                                                <p className="text-xs text-gray-400 sm:hidden">{file.date}</p>
-                                                            </div>
-                                                        </div>
-                                                    </td>
-                                                    <td className="px-6 py-3 text-sm text-gray-500 hidden sm:table-cell">{file.uploader} • {file.date}</td>
-                                                    <td className="px-6 py-3 text-right">
-                                                        <button className="p-2 text-gray-500 hover:text-primary hover:bg-gray-100 rounded-full transition-colors">
-                                                            <span className="material-symbols-outlined text-xl">download</span>
-                                                        </button>
-                                                    </td>
-                                                </tr>
-                                            ))}
-                                        </tbody>
-                                    </table>
-                                </div>
-                            </div>
-                        )}
-                    </div>
-                )}
+                {/* View Mode Toggle */}
+                <div className="bg-gray-100 p-1 rounded-xl flex items-center">
+                    <button
+                        onClick={() => setViewMode('documents')}
+                        className={`px-4 py-2 rounded-lg text-sm font-bold flex items-center gap-2 transition-all ${viewMode === 'documents' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}
+                    >
+                        <span className="material-symbols-outlined text-lg">folder</span> Documentos
+                    </button>
+                    <button
+                        onClick={() => setViewMode('repository')}
+                        className={`px-4 py-2 rounded-lg text-sm font-bold flex items-center gap-2 transition-all ${viewMode === 'repository' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}
+                    >
+                        <img src="https://github.githubassets.com/images/modules/logos_page/GitHub-Mark.png" className={`w-4 h-4 ${viewMode === 'repository' ? 'opacity-100' : 'opacity-50'}`} alt="GitHub" />
+                        Repositorio
+                    </button>
+                </div>
             </div>
 
-            {/* Delete Confirmation Modal */}
-            <Modal isOpen={!!itemToDelete} onClose={() => setItemToDelete(null)} title={`¿Eliminar ${itemToDelete?.type === 'folder' ? 'Carpeta' : 'Archivo'}?`}>
-                <div className="space-y-4">
-                    <p className="text-gray-600">
-                        Estás a punto de eliminar <span className="font-bold text-gray-900">"{itemToDelete?.name}"</span>.
-                        {itemToDelete?.type === 'folder' && ' Todo su contenido será eliminado permanentemente.'}
-                        <br />Esta acción no se puede deshacer.
-                    </p>
-                    <div className="flex justify-end gap-3 pt-2">
-                        <button onClick={() => setItemToDelete(null)} className="px-4 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 font-bold rounded-lg transition-colors">Cancelar</button>
-                        <button onClick={handleDeleteConfirm} className="px-4 py-2 bg-red-600 hover:bg-red-700 text-white font-bold rounded-lg transition-colors">Sí, eliminar</button>
+            {/* =======================
+            REPOSITORY VIEW
+           ======================= */}
+            {viewMode === 'repository' && (
+                <div className="animate-in fade-in slide-in-from-bottom-4 duration-500 space-y-6">
+                    {/* Repo Health Card */}
+                    <div className="bg-gray-900 text-white rounded-2xl p-6 shadow-lg relative overflow-hidden">
+                        <div className="absolute top-0 right-0 p-8 opacity-10">
+                            <span className="material-symbols-outlined text-9xl">code</span>
+                        </div>
+                        <div className="relative z-10 flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
+                            <div>
+                                <h2 className="text-2xl font-bold font-mono tracking-tight flex items-center gap-3">
+                                    {repoStats.name}
+                                </h2>
+                                <p className="text-gray-400 text-sm mt-1">{repoStats.url || 'No vinculado'}</p>
+                            </div>
+                            <div className="text-right">
+                                {repoStats.url ? (
+                                    <a href={repoStats.url} target="_blank" rel="noopener noreferrer" className="bg-white text-gray-900 px-4 py-2 rounded-lg font-bold text-sm hover:bg-gray-100 flex items-center gap-2 transition-colors">
+                                        <span className="material-symbols-outlined text-lg">open_in_new</span>
+                                        Ver en GitHub
+                                    </a>
+                                ) : (
+                                    <span className="px-3 py-1 bg-gray-800 text-gray-400 rounded text-sm">Repositorio no configurado</span>
+                                )}
+                            </div>
+                        </div>
+                    </div>
+                    {/* Activity Stream (Mocked for now) */}
+                    <div className="bg-white border border-gray-200 rounded-xl overflow-hidden shadow-sm">
+                        <div className="bg-gray-50 px-4 py-3 border-b border-gray-200 flex justify-between items-center">
+                            <span className="text-xs font-bold text-gray-500 uppercase">Actividad Reciente (Demo)</span>
+                        </div>
+                        <div className="divide-y divide-gray-100">
+                            {recentCommits.map((commit, i) => (
+                                <div key={commit.id} className="p-4 hover:bg-gray-50 transition-colors group flex gap-4 items-start">
+                                    <div className="flex-1 min-w-0">
+                                        <p className="text-sm font-medium text-gray-900 font-mono truncate">{commit.message}</p>
+                                        <div className="flex items-center gap-2 mt-1">
+                                            <span className="text-xs text-gray-500 font-bold">{commit.author}</span>
+                                            <span className="text-xs text-gray-400">•</span>
+                                            <span className="text-xs text-gray-400">{commit.time}</span>
+                                        </div>
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
                     </div>
                 </div>
-            </Modal>
+            )}
 
-        </ClientLayout>
+            {/* =======================
+            DOCUMENTS VIEW (Standard)
+           ======================= */}
+            {viewMode === 'documents' && (
+                <div
+                    className={`bg-white rounded-2xl border-2 border-dashed transition-all duration-300 relative ${isDragging ? 'border-primary bg-blue-50 scale-[1.01]' : 'border-gray-200 hover:border-gray-300'}`}
+                    onDragOver={handleDragOver}
+                    onDragLeave={handleDragLeave}
+                    onDrop={handleDrop}
+                >
+                    {isDragging && (
+                        <div className="absolute inset-0 flex items-center justify-center bg-white/80 backdrop-blur-sm z-50 rounded-2xl">
+                            <div className="text-center animate-bounce">
+                                <span className="material-symbols-outlined text-6xl text-primary">cloud_upload</span>
+                                <h3 className="text-2xl font-bold text-gray-900 mt-4">Suelta los archivos aquí</h3>
+                            </div>
+                        </div>
+                    )}
+
+                    <div className="p-6">
+                        <div className="flex justify-between items-center mb-4">
+                            <h3 className="font-bold text-gray-700">Carpetas</h3>
+                            <button onClick={() => setShowNewFolderModal(true)} className="text-primary hover:bg-primary/5 px-3 py-1.5 rounded-lg text-sm font-bold flex items-center gap-2 transition-colors">
+                                <span className="material-symbols-outlined text-lg">create_new_folder</span> Nueva Carpeta
+                            </button>
+                        </div>
+
+                        {/* Folders List */}
+                        {currentSubfolders.length > 0 ? (
+                            <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
+                                {currentSubfolders.map((folder: any) => (
+                                    <div
+                                        key={folder.id}
+                                        onClick={(e) => { e.stopPropagation(); setCurrentFolder(folder); }}
+                                        className="p-4 bg-gray-50 hover:bg-white hover:shadow-md border border-gray-100 hover:border-blue-200 rounded-xl cursor-pointer transition-all group relative"
+                                    >
+                                        <div className="flex items-start justify-between mb-2">
+                                            <span className="material-symbols-outlined text-3xl text-blue-300 group-hover:text-blue-500 transition-colors">folder</span>
+                                            <button
+                                                onClick={(e) => {
+                                                    e.stopPropagation();
+                                                    setFolderMenu({ id: folder.id, x: e.clientX, y: e.clientY });
+                                                }}
+                                                className="text-gray-300 hover:text-gray-500 opacity-0 group-hover:opacity-100 transition-opacity p-1 hover:bg-gray-200 rounded-full"
+                                            >
+                                                <span className="material-symbols-outlined text-lg">more_vert</span>
+                                            </button>
+                                        </div>
+                                        {renamingFolder?.id === folder.id ? (
+                                            <input
+                                                autoFocus
+                                                value={renamingFolder.name}
+                                                onChange={e => setRenamingFolder({ ...renamingFolder, name: e.target.value })}
+                                                onBlur={handleRenameFolder}
+                                                onKeyDown={e => e.key === 'Enter' && handleRenameFolder()}
+                                                onClick={e => e.stopPropagation()}
+                                                className="w-full text-sm font-bold border border-blue-300 rounded px-1 outline-none"
+                                            />
+                                        ) : (
+                                            <h4 className="font-bold text-gray-900 text-sm truncate" title={folder.name}>{folder.name}</h4>
+                                        )}
+                                        <p className="text-xs text-gray-500 mt-1">{folder.filesCount || 0} archivos</p>
+                                    </div>
+                                ))}
+                            </div>
+                        ) : (
+                            <div className="mb-8 p-4 border border-dashed border-gray-200 rounded-xl text-center">
+                                <p className="text-gray-400 text-sm">No hay carpetas aquí.</p>
+                            </div>
+                        )}
+
+                        {/* Files List */}
+                        <div className="space-y-1">
+                            <div className="grid grid-cols-12 px-4 py-2 text-xs font-bold text-gray-400 uppercase tracking-wide border-b border-gray-100">
+                                <div className="col-span-5 md:col-span-6">Nombre</div>
+                                <div className="col-span-3 md:col-span-2">Tamaño</div>
+                                <div className="col-span-4 md:col-span-4 text-right">Acciones</div>
+                            </div>
+
+                            {currentFiles.length === 0 ? (
+                                <div className="py-12 text-center">
+                                    <div className="w-16 h-16 bg-gray-50 rounded-full flex items-center justify-center mx-auto mb-4">
+                                        <span className="material-symbols-outlined text-3xl text-gray-300">folder_open</span>
+                                    </div>
+                                    <p className="text-gray-500 text-sm">Esta carpeta está vacía.</p>
+                                </div>
+                            ) : (
+                                currentFiles.map((file: any) => (
+                                    <div key={file.id} className="grid grid-cols-12 px-4 py-3 hover:bg-gray-50 rounded-lg group items-center transition-colors">
+                                        <div className="col-span-5 md:col-span-6 flex items-center gap-3 overflow-hidden">
+                                            <div className={`w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0 ${getColor(file.mimeType)}`}>
+                                                <span className="material-symbols-outlined text-lg">{getIcon(file.mimeType)}</span>
+                                            </div>
+                                            <div className="min-w-0">
+                                                <p className="text-sm font-bold text-gray-900 truncate">{file.name}</p>
+                                                <p className="text-xs text-gray-400 hidden sm:block">{new Date(file.createdAt).toLocaleDateString()} • {file.uploaderId}</p>
+                                            </div>
+                                        </div>
+                                        <div className="col-span-3 md:col-span-2 text-sm text-gray-500 font-mono">{(file.size / 1024).toFixed(1)} KB</div>
+                                        <div className="col-span-4 md:col-span-4 flex items-center justify-end gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                                            <button className="p-2 hover:bg-gray-200 rounded-lg text-gray-500 hover:text-gray-700" title="Descargar">
+                                                <span className="material-symbols-outlined text-lg">download</span>
+                                            </button>
+                                        </div>
+                                    </div>
+                                ))
+                            )}
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* Context Menu */}
+            {folderMenu && (
+                <div
+                    className="fixed bg-white shadow-xl rounded-lg border border-gray-100 py-1 w-40 z-50 animate-in fade-in zoom-in-95 duration-100"
+                    style={{ top: folderMenu.y, left: folderMenu.x }}
+                    onClick={e => e.stopPropagation()}
+                >
+                    <button
+                        onClick={() => {
+                            const f = localFolders.find(f => f.id === folderMenu.id);
+                            if (f) setRenamingFolder({ id: f.id, name: f.name });
+                            setFolderMenu(null);
+                        }}
+                        className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 flex items-center gap-2"
+                    >
+                        <span className="material-symbols-outlined text-base">edit</span> Renombrar
+                    </button>
+                    <button
+                        onClick={() => handleDeleteFolder(folderMenu.id)}
+                        className="w-full text-left px-4 py-2 text-sm text-red-600 hover:bg-red-50 flex items-center gap-2"
+                    >
+                        <span className="material-symbols-outlined text-base">delete</span> Eliminar
+                    </button>
+                </div>
+            )}
+
+            {/* New Folder Modal */}
+            {showNewFolderModal && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
+                    <div className="bg-white rounded-2xl shadow-xl w-full max-w-sm p-6">
+                        <h3 className="text-lg font-bold text-gray-900 mb-4">Nueva Carpeta</h3>
+                        <input
+                            autoFocus
+                            type="text"
+                            className="w-full px-4 py-2 border border-gray-200 rounded-xl focus:ring-2 focus:ring-primary outline-none mb-4"
+                            placeholder="Nombre de la carpeta"
+                            value={newFolderName}
+                            onChange={e => setNewFolderName(e.target.value)}
+                            onKeyDown={e => e.key === 'Enter' && handleCreateFolder()}
+                        />
+                        <div className="flex justify-end gap-2">
+                            <button onClick={() => setShowNewFolderModal(false)} className="px-4 py-2 text-gray-600 font-bold hover:bg-gray-50 rounded-lg">Cancelar</button>
+                            <button onClick={handleCreateFolder} className="px-4 py-2 bg-primary text-white font-bold rounded-lg hover:bg-primary-dark">Crear</button>
+                        </div>
+                    </div>
+                </div>
+            )}
+        </div>
     );
 };
 

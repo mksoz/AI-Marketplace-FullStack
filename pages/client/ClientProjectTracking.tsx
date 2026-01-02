@@ -1,283 +1,339 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import ClientLayout from '../../components/ClientLayout';
+import api from '../../services/api';
 
 const ClientProjectTracking: React.FC = () => {
-  const navigate = useNavigate();
+    const navigate = useNavigate();
+    const location = useLocation();
+    const searchRef = useRef<HTMLDivElement>(null);
 
-  // Project Search State
-  const [isSearchOpen, setIsSearchOpen] = useState(false);
-  const [searchQuery, setSearchQuery] = useState('');
-  
-  // Default to Specific Project for Demo of Roadmap
-  const [selectedProject, setSelectedProject] = useState<{name: string, vendor: string, id: string} | null>({
-      name: 'Motor de Recomendación con IA',
-      vendor: 'QuantumLeap AI',
-      id: '1'
-  });
-  
-  const searchRef = useRef<HTMLDivElement>(null);
+    // State
+    const [projects, setProjects] = useState<any[]>([]);
+    const [selectedProject, setSelectedProject] = useState<any>(null);
+    const [projectDetails, setProjectDetails] = useState<any>(null);
+    const [loading, setLoading] = useState(false);
+    const [isSearchOpen, setIsSearchOpen] = useState(false);
+    const [searchQuery, setSearchQuery] = useState('');
+    const [activeTab, setActiveTab] = useState<'overview' | 'deliverables' | 'files'>('overview');
 
-  // Mock Data Extended
-  const projects = [
-      { 
-        id: '1', 
-        name: 'Motor de Recomendación con IA', 
-        vendor: 'QuantumLeap AI', 
-        status: 'En Desarrollo', 
-        progress: 65,
-        endDate: '31 Oct, 2024',
-        finance: { total: 80000, paid: 60000, pending: 20000 },
-        pendingAction: 'Validar Wireframes Finales',
-        nextMilestone: 'Entrenamiento del Modelo',
-        // Enhanced Timeline for Roadmap
-        timeline: [
-            { id: 1, title: 'Kickoff', date: '15 Jul', status: 'completed', desc: 'Definición de alcance y firma de contrato.' },
-            { id: 2, title: 'Análisis de Datos', date: '01 Ago', status: 'completed', desc: 'Limpieza de dataset y selección de features.' },
-            { id: 3, title: 'Diseño UX/UI', date: '20 Ago', status: 'completed', desc: 'Wireframes y prototipos aprobados.' },
-            { id: 4, title: 'Entrenamiento', date: '30 Sep', status: 'current', desc: 'Entrenamiento del modelo con GPU clusters. Optimizando precisión.', daysLeft: 5 },
-            { id: 5, title: 'Integración API', date: '15 Oct', status: 'pending', desc: 'Conexión del modelo con el backend existente.' },
-            { id: 6, title: 'QA & Entrega', date: '31 Oct', status: 'pending', desc: 'Pruebas finales y despliegue a producción.' }
-        ],
-        activity: [
-            { text: 'Nuevo entregable subido: "Reporte de Precisión v2"', time: 'Hace 2 horas', type: 'file' },
-            { text: 'Pago del Hito 2 liberado', time: 'Hace 2 días', type: 'payment' },
-            { text: 'Reunión de seguimiento programada', time: 'Hace 3 días', type: 'meeting' }
-        ]
-      },
-      // ... other projects (kept structure but simplified for brevity in this specific update)
-      { id: '2', name: 'Chatbot Soporte', vendor: 'InnovateAI', status: 'Inicio', progress: 15, timeline: [], activity: [], finance: {total:0, paid:0, pending:0} }
-  ];
+    useEffect(() => {
+        const params = new URLSearchParams(location.search);
+        const tab = params.get('tab');
+        if (tab && ['overview', 'deliverables', 'files'].includes(tab)) {
+            setActiveTab(tab as any);
+        }
+    }, [location.search]);
 
-  const filteredProjects = projects.filter(p => 
-      p.name.toLowerCase().includes(searchQuery.toLowerCase()) || 
-      p.vendor.toLowerCase().includes(searchQuery.toLowerCase())
-  );
+    // File State
+    const [currentFolder, setCurrentFolder] = useState<any>(null);
+    const [repoView, setRepoView] = useState(false);
 
-  const activeProject = selectedProject ? projects.find(p => p.id === selectedProject.id) : null;
+    // Fetch Projects List
+    useEffect(() => {
+        const fetchProjects = async () => {
+            try {
+                const res = await api.get('/projects/my-projects');
+                setProjects(res.data);
+                if (res.data.length > 0 && !selectedProject) {
+                    setSelectedProject(res.data[0]);
+                }
+            } catch (error) {
+                console.error("Error fetching projects", error);
+            }
+        };
+        fetchProjects();
+    }, []);
 
-  useEffect(() => {
-    const handleClickOutside = (event: MouseEvent) => {
-      if (searchRef.current && !searchRef.current.contains(event.target as Node)) {
-        setIsSearchOpen(false);
-      }
+    // Fetch Project Tracking Details
+    useEffect(() => {
+        if (!selectedProject) return;
+        const fetchDetails = async () => {
+            setLoading(true);
+            try {
+                const res = await api.get(`/projects/${selectedProject.id}/tracking`);
+                setProjectDetails(res.data);
+            } catch (error) {
+                console.error("Error fetching tracking details", error);
+            } finally {
+                setLoading(false);
+            }
+        };
+        fetchDetails();
+    }, [selectedProject]);
+
+    const filteredProjects = projects.filter(p =>
+        p.title?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        p.vendor?.companyName?.toLowerCase().includes(searchQuery.toLowerCase())
+    );
+
+    // Helper to calculate progress
+    const getProgress = () => {
+        if (!projectDetails?.milestones) return 0;
+        const total = projectDetails.milestones.length;
+        const completed = projectDetails.milestones.filter((m: any) => m.status === 'COMPLETED' || m.status === 'PAID').length;
+        return total > 0 ? Math.round((completed / total) * 100) : 0;
     };
-    document.addEventListener('mousedown', handleClickOutside);
-    return () => document.removeEventListener('mousedown', handleClickOutside);
-  }, []);
 
-  // Helper for Roadmap visual state
-  const [activeNodeId, setActiveNodeId] = useState<number | null>(4); // Default to current
+    // Helper to get total budget and paid
+    const getFinancials = () => {
+        const total = projectDetails?.budget || 0;
+        // Assuming milestones track payments. If not, use some other logic.
+        // For now, let's assume we sum up paid milestones
+        const paid = projectDetails?.milestones
+            ?.filter((m: any) => m.isPaid)
+            .reduce((acc: number, m: any) => acc + (m.amount || 0), 0) || 0;
 
-  return (
-    <ClientLayout>
-       <div className="space-y-8 pb-20">
-          
-          {/* Header & Context Selector */}
-          <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
-             <h1 className="text-3xl font-black text-gray-900">
-                {selectedProject ? selectedProject.name : 'Vista General de Proyectos'}
-             </h1>
-             
-             {/* Project Selector */}
-             <div className="relative w-full md:w-96 z-30" ref={searchRef}>
-                <button 
-                    onClick={() => setIsSearchOpen(!isSearchOpen)}
-                    className="w-full flex items-center justify-between bg-white border border-gray-200 hover:border-primary/50 text-gray-900 text-left rounded-xl px-4 py-3 shadow-sm transition-all group"
-                >
-                    <div className="flex items-center gap-3">
-                        <span className="material-symbols-outlined text-gray-500">
-                            {selectedProject ? 'folder' : 'dashboard'}
-                        </span>
-                        <div>
-                            <span className="block font-bold text-sm leading-tight">
-                                {selectedProject ? selectedProject.name : 'Vista General'}
-                            </span>
-                            <span className="text-xs text-gray-500 font-medium">
-                                {selectedProject ? selectedProject.vendor : 'Resumen Global'}
-                            </span>
-                        </div>
+        const escrow = projectDetails?.milestones
+            ?.filter((m: any) => m.status === 'COMPLETED' && !m.isPaid)
+            .reduce((acc: number, m: any) => acc + (m.amount || 0), 0) || 0;
+
+        return { total, paid, escrow, pending: total - paid - escrow };
+    };
+
+    const financials = getFinancials();
+
+    return (
+        <ClientLayout>
+            <div className="space-y-8 pb-20">
+                {/* Header & Project Selector */}
+                <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+                    <div>
+                        <h1 className="text-3xl font-black text-gray-900">
+                            {selectedProject ? selectedProject.title : 'Mis Proyectos'}
+                        </h1>
+                        <p className="text-gray-500 mt-1">
+                            {selectedProject?.vendor ? `Vendor: ${selectedProject.vendor.companyName}` : 'Seguimiento de proyectos'}
+                        </p>
                     </div>
-                    <span className="material-symbols-outlined text-gray-400 group-hover:text-gray-600">expand_more</span>
-                </button>
 
-                {isSearchOpen && (
-                    <div className="absolute top-full right-0 w-full bg-white rounded-xl shadow-floating border border-gray-100 mt-2 p-2 animate-in fade-in zoom-in-95 duration-200">
-                        {/* Search and List Logic (Same as before) */}
-                        <div className="max-h-60 overflow-y-auto space-y-1">
-                            {filteredProjects.map(p => (
-                                <button 
-                                    key={p.id}
-                                    onClick={() => {
-                                        setSelectedProject({name: p.name, vendor: p.vendor, id: p.id});
-                                        setIsSearchOpen(false);
-                                    }}
-                                    className={`w-full text-left px-3 py-2 rounded-lg flex justify-between items-center group transition-colors ${selectedProject?.id === p.id ? 'bg-primary/5' : 'hover:bg-gray-50'}`}
-                                >
-                                    <div>
-                                        <p className={`font-bold text-sm ${selectedProject?.id === p.id ? 'text-primary' : 'text-gray-900'}`}>{p.name}</p>
-                                        <p className="text-xs text-gray-500">{p.vendor}</p>
-                                    </div>
-                                    {selectedProject?.id === p.id && <span className="material-symbols-outlined text-primary text-sm">check</span>}
-                                </button>
-                            ))}
-                        </div>
-                    </div>
-                )}
-             </div>
-          </div>
-
-          {activeProject && (
-             <div className="space-y-8 animate-in fade-in duration-500">
-                
-                {/* 1. NEW INTERACTIVE VISUAL ROADMAP */}
-                <section className="bg-white rounded-2xl border border-gray-200 p-8 shadow-sm overflow-hidden relative">
-                    <div className="flex justify-between items-end mb-10">
-                        <div>
-                            <h2 className="text-xl font-bold text-gray-900">Hoja de Ruta Interactiva</h2>
-                            <p className="text-gray-500 text-sm mt-1">Sigue el progreso en tiempo real de cada fase.</p>
-                        </div>
-                        <div className="text-right">
-                            <span className="text-xs font-bold text-gray-400 uppercase">Estado General</span>
-                            <div className="flex items-center gap-2">
-                                <div className="w-2 h-2 rounded-full bg-green-500 animate-pulse"></div>
-                                <span className="font-bold text-green-600">A tiempo</span>
+                    <div className="relative w-full md:w-96 z-30" ref={searchRef}>
+                        <button
+                            onClick={() => setIsSearchOpen(!isSearchOpen)}
+                            className="w-full flex items-center justify-between bg-white border border-gray-200 hover:border-primary/50 text-gray-900 text-left rounded-xl px-4 py-3 shadow-sm transition-all group"
+                        >
+                            <div className="flex items-center gap-3">
+                                <span className="material-symbols-outlined text-gray-500">
+                                    {selectedProject ? 'folder' : 'dashboard'}
+                                </span>
+                                <div>
+                                    <span className="block font-bold text-sm leading-tight">
+                                        {selectedProject ? selectedProject.title : 'Seleccionar Proyecto'}
+                                    </span>
+                                </div>
                             </div>
-                        </div>
+                            <span className="material-symbols-outlined text-gray-400 group-hover:text-gray-600">expand_more</span>
+                        </button>
+
+                        {isSearchOpen && (
+                            <div className="absolute top-full right-0 w-full bg-white rounded-xl shadow-floating border border-gray-100 mt-2 p-2 animate-in fade-in zoom-in-95 duration-200 z-50">
+                                <div className="max-h-60 overflow-y-auto space-y-1">
+                                    {filteredProjects.map(p => (
+                                        <button
+                                            key={p.id}
+                                            onClick={() => {
+                                                setSelectedProject(p);
+                                                setIsSearchOpen(false);
+                                            }}
+                                            className={`w-full text-left px-3 py-2 rounded-lg flex justify-between items-center group transition-colors ${selectedProject?.id === p.id ? 'bg-primary/5' : 'hover:bg-gray-50'}`}
+                                        >
+                                            <div>
+                                                <p className={`font-bold text-sm ${selectedProject?.id === p.id ? 'text-primary' : 'text-gray-900'}`}>{p.title}</p>
+                                            </div>
+                                            {selectedProject?.id === p.id && <span className="material-symbols-outlined text-primary text-sm">check</span>}
+                                        </button>
+                                    ))}
+                                </div>
+                            </div>
+                        )}
                     </div>
+                </div>
 
-                    {/* Horizontal Timeline Container */}
-                    <div className="relative pt-12 pb-10 overflow-x-auto no-scrollbar">
-                        {/* Connecting Line - Adjusted top to account for padding-top */}
-                        <div className="absolute top-[4.3rem] left-0 w-full h-1 bg-gray-100 -z-0"></div>
-                        
-                        <div className="flex justify-between min-w-[800px] px-4 relative z-10">
-                            {activeProject.timeline.map((milestone, index) => {
-                                const isCompleted = milestone.status === 'completed';
-                                const isCurrent = milestone.status === 'current';
-                                const isActive = activeNodeId === milestone.id;
+                {!selectedProject ? (
+                    <div className="text-center py-20 bg-gray-50 rounded-xl border border-dashed border-gray-200">
+                        <span className="material-symbols-outlined text-4xl text-gray-300">folder_off</span>
+                        <p className="text-gray-500 mt-2">Selecciona un proyecto para ver el seguimiento.</p>
+                    </div>
+                ) : loading ? (
+                    <div className="flex justify-center py-20">
+                        <span className="material-symbols-outlined animate-spin text-4xl text-primary">progress_activity</span>
+                    </div>
+                ) : (
+                    <div className="space-y-6">
+                        {/* Navigation Tabs */}
+                        <div className="border-b border-gray-200">
+                            <nav className="flex gap-6">
+                                <button onClick={() => setActiveTab('overview')} className={`pb-3 text-sm font-medium border-b-2 transition-colors ${activeTab === 'overview' ? 'border-primary text-primary' : 'border-transparent text-gray-500 hover:text-gray-800'}`}>
+                                    Seguimiento
+                                </button>
+                                <button onClick={() => setActiveTab('deliverables')} className={`pb-3 text-sm font-medium border-b-2 transition-colors ${activeTab === 'deliverables' ? 'border-primary text-primary' : 'border-transparent text-gray-500 hover:text-gray-800'}`}>
+                                    Hitos y Entregables
+                                </button>
+                                <button onClick={() => setActiveTab('files')} className={`pb-3 text-sm font-medium border-b-2 transition-colors ${activeTab === 'files' ? 'border-primary text-primary' : 'border-transparent text-gray-500 hover:text-gray-800'}`}>
+                                    Archivos y Repo
+                                </button>
+                            </nav>
+                        </div>
 
-                                return (
-                                    <div key={milestone.id} className="flex flex-col items-center group cursor-pointer" onClick={() => setActiveNodeId(milestone.id)}>
-                                        {/* Node Circle */}
-                                        <div className={`
-                                            w-14 h-14 rounded-full flex items-center justify-center border-4 transition-all duration-300 relative
-                                            ${isCompleted ? 'bg-green-500 border-green-100 text-white' : 
-                                              isCurrent ? 'bg-primary border-primary/20 text-white shadow-lg shadow-primary/30 scale-110' : 
-                                              'bg-white border-gray-200 text-gray-300'}
-                                            ${isActive ? 'ring-2 ring-offset-2 ring-dark' : ''}
-                                        `}>
-                                            <span className="material-symbols-outlined text-2xl">
-                                                {isCompleted ? 'check' : isCurrent ? 'sync' : 'radio_button_unchecked'}
-                                            </span>
-                                            
-                                            {/* Days Left Bubble for Current */}
-                                            {isCurrent && milestone.daysLeft && (
-                                                <div className="absolute -top-3 -right-3 bg-dark text-white text-[10px] font-bold px-2 py-1 rounded-full shadow-md animate-bounce">
-                                                    {milestone.daysLeft}d
+                        {/* TAB: OVERVIEW */}
+                        {activeTab === 'overview' && (
+                            <div className="space-y-6 animate-in fade-in duration-300">
+                                {/* Roadmap */}
+                                <div className="bg-white rounded-xl border border-gray-200 p-6 shadow-sm overflow-x-auto">
+                                    <h3 className="font-bold text-gray-900 mb-6">Roadmap del Proyecto</h3>
+                                    {(!projectDetails?.milestones || projectDetails.milestones.length === 0) ? (
+                                        <p className="text-gray-500 text-sm">El vendor aún no ha configurado los hitos del proyecto.</p>
+                                    ) : (
+                                        <div className="relative min-w-[600px] flex justify-between items-center py-4 px-8">
+                                            {/* Line */}
+                                            <div className="absolute left-0 top-1/2 -translate-y-1/2 w-full h-1 bg-gray-100 -z-0"></div>
+
+                                            {projectDetails.milestones.map((m: any, idx: number) => {
+                                                const isCompleted = m.status === 'COMPLETED' || m.status === 'PAID';
+                                                const isPending = m.status === 'PENDING';
+                                                return (
+                                                    <div key={m.id} className="relative z-10 flex flex-col items-center group">
+                                                        <div className={`w-10 h-10 rounded-full flex items-center justify-center border-4 ${isCompleted ? 'bg-green-500 border-green-100 text-white' : 'bg-white border-gray-200 text-gray-400'}`}>
+                                                            <span className="material-symbols-outlined text-sm">{isCompleted ? 'check' : 'radio_button_unchecked'}</span>
+                                                        </div>
+                                                        <div className="absolute top-12 w-32 text-center">
+                                                            <p className="text-xs font-bold text-gray-900 mb-0.5 truncate">{m.title}</p>
+                                                            <p className="text-[10px] text-gray-500">{new Date(m.dueDate).toLocaleDateString()}</p>
+                                                        </div>
+                                                    </div>
+                                                );
+                                            })}
+                                        </div>
+                                    )}
+                                </div>
+
+                                {/* Financials & Repo Stats */}
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                    <div className="bg-white rounded-xl border border-gray-200 p-6 shadow-sm">
+                                        <h3 className="font-bold text-gray-900 mb-4 flex items-center gap-2">
+                                            <span className="material-symbols-outlined text-gray-400">payments</span> Finanzas
+                                        </h3>
+                                        <div className="space-y-4">
+                                            <div className="flex justify-between items-center">
+                                                <span className="text-sm text-gray-500">Total</span>
+                                                <span className="font-bold text-gray-900">${financials.total.toLocaleString()}</span>
+                                            </div>
+                                            <div className="flex justify-between items-center">
+                                                <span className="text-sm text-gray-500">Pagado</span>
+                                                <span className="font-bold text-green-600">${financials.paid.toLocaleString()}</span>
+                                            </div>
+                                            <div className="flex justify-between items-center bg-gray-50 p-2 rounded-lg">
+                                                <span className="text-sm text-gray-500">En Escrow</span>
+                                                <span className="font-bold text-blue-600">${financials.escrow.toLocaleString()}</span>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        )}
+
+                        {/* TAB: DELIVERABLES (MILESTONES) */}
+                        {activeTab === 'deliverables' && (
+                            <div className="space-y-4 animate-in fade-in duration-300">
+                                {projectDetails?.milestones?.map((m: any) => (
+                                    <div key={m.id} className="bg-white border border-gray-200 rounded-xl p-6 shadow-sm">
+                                        <div className="flex justify-between items-start mb-4">
+                                            <div>
+                                                <div className="flex items-center gap-2 mb-1">
+                                                    <h3 className="font-bold text-lg text-gray-900">{m.title}</h3>
+                                                    <span className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase ${m.status === 'COMPLETED' ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-500'}`}>
+                                                        {m.status}
+                                                    </span>
                                                 </div>
+                                                <p className="text-gray-600 text-sm">{m.description || "Sin descripción"}</p>
+                                            </div>
+                                            <div className="text-right">
+                                                <p className="font-bold text-gray-900">${m.amount.toLocaleString()}</p>
+                                                <p className="text-xs text-gray-400">Entrega: {new Date(m.dueDate).toLocaleDateString()}</p>
+                                            </div>
+                                        </div>
+
+                                        {/* Deliverables section can be expanded here if we have a specific Deliverable model linked, 
+                                            for now assuming files in folders represent deliverables */}
+                                        <div className="bg-gray-50 p-3 rounded-lg flex items-center gap-3">
+                                            <span className="material-symbols-outlined text-gray-400">folder</span>
+                                            <p className="text-sm text-gray-500 italic">Los archivos entregables estarán en la pestaña "Archivos".</p>
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
+                        )}
+
+                        {/* TAB: FILES */}
+                        {activeTab === 'files' && (
+                            <div className="space-y-6 animate-in fade-in duration-300">
+                                <div className="flex gap-4 mb-4">
+                                    <button onClick={() => setRepoView(false)} className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-bold ${!repoView ? 'bg-gray-900 text-white' : 'bg-white border border-gray-200 text-gray-600'}`}>
+                                        <span className="material-symbols-outlined text-sm">folder</span> Archivos del Proyecto
+                                    </button>
+                                    {projectDetails?.repoUrl && (
+                                        <button onClick={() => setRepoView(true)} className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-bold ${repoView ? 'bg-gray-900 text-white' : 'bg-white border border-gray-200 text-gray-600'}`}>
+                                            <img src="https://github.githubassets.com/images/modules/logos_page/GitHub-Mark.png" className={`w-4 h-4 ${repoView ? 'invert' : ''}`} alt="GitHub" />
+                                            Repositorio en Vivo
+                                        </button>
+                                    )}
+                                </div>
+
+                                {!repoView ? (
+                                    <div className="bg-white rounded-xl border border-gray-200 p-6 min-h-[300px]">
+                                        <h4 className="font-bold text-gray-900 mb-4 flex items-center gap-2">
+                                            <span className="material-symbols-outlined text-amber-500">folder</span>
+                                            Archivos Compartidos
+                                        </h4>
+                                        {/* Simple File List for now using root files from backend logic */}
+                                        <div className="space-y-2">
+                                            {projectDetails?.folders?.map((f: any) => (
+                                                <div key={f.id} className="flex items-center gap-3 p-3 hover:bg-gray-50 rounded-lg cursor-pointer border border-transparent hover:border-gray-100 transition-colors">
+                                                    <span className="material-symbols-outlined text-amber-400">folder</span>
+                                                    <span className="text-sm font-bold text-gray-700">{f.name}</span>
+                                                    <span className="text-xs text-gray-400 ml-auto">Carpeta</span>
+                                                </div>
+                                            ))}
+                                            {projectDetails?.files?.map((f: any) => (
+                                                <div key={f.id} className="flex items-center gap-3 p-3 hover:bg-gray-50 rounded-lg cursor-pointer border border-transparent hover:border-gray-100 transition-colors">
+                                                    <span className="material-symbols-outlined text-blue-400">description</span>
+                                                    <span className="text-sm font-bold text-gray-700">{f.name}</span>
+                                                    <div className="ml-auto text-right">
+                                                        <p className="text-[10px] text-gray-400">{new Date(f.createdAt).toLocaleDateString()}</p>
+                                                    </div>
+                                                    <button className="p-1 hover:bg-gray-200 rounded text-gray-500">
+                                                        <span className="material-symbols-outlined text-sm">download</span>
+                                                    </button>
+                                                </div>
+                                            ))}
+                                            {projectDetails?.folders?.length === 0 && projectDetails?.files?.length === 0 && (
+                                                <p className="text-gray-400 text-sm italic">No hay archivos compartidos aún.</p>
                                             )}
                                         </div>
-
-                                        {/* Text Info */}
-                                        <div className="mt-4 text-center">
-                                            <p className={`text-xs font-bold uppercase mb-1 ${isCurrent ? 'text-primary' : 'text-gray-400'}`}>
-                                                {milestone.date}
-                                            </p>
-                                            <p className={`text-sm font-bold transition-colors ${isActive ? 'text-dark' : 'text-gray-500'}`}>
-                                                {milestone.title}
-                                            </p>
-                                        </div>
                                     </div>
-                                );
-                            })}
-                        </div>
-                    </div>
-
-                    {/* Detailed Info Panel (Shows based on selection) */}
-                    {activeNodeId && (
-                        <div className="mt-4 bg-gray-50 rounded-xl p-6 border border-gray-100 animate-in slide-in-from-top-2 duration-300 flex items-start gap-4">
-                            <div className="p-3 bg-white rounded-lg shadow-sm text-primary">
-                                <span className="material-symbols-outlined text-2xl">info</span>
-                            </div>
-                            <div className="flex-1">
-                                <h3 className="font-bold text-gray-900 text-lg">
-                                    {activeProject.timeline.find(m => m.id === activeNodeId)?.title}
-                                </h3>
-                                <p className="text-gray-600 mt-1">
-                                    {activeProject.timeline.find(m => m.id === activeNodeId)?.desc}
-                                </p>
-                                {activeProject.timeline.find(m => m.id === activeNodeId)?.status === 'current' && (
-                                    <div className="mt-3 flex gap-3">
-                                        <button className="text-xs bg-dark text-white px-3 py-1.5 rounded-lg font-bold hover:bg-black transition-colors">
-                                            Ver Tareas
-                                        </button>
-                                        <button className="text-xs bg-white border border-gray-200 text-gray-700 px-3 py-1.5 rounded-lg font-bold hover:bg-gray-100 transition-colors">
-                                            Contactar Vendor
-                                        </button>
+                                ) : (
+                                    <div className="bg-gray-900 text-white rounded-xl p-6">
+                                        <div className="flex justify-between items-center mb-6">
+                                            <div>
+                                                <h3 className="font-mono font-bold text-lg">{projectDetails.repoName || 'Repositorio Privado'}</h3>
+                                                <p className="text-gray-400 text-xs">{projectDetails.repoUrl}</p>
+                                            </div>
+                                            <a href={projectDetails.repoUrl} target="_blank" rel="noreferrer" className="bg-white/10 hover:bg-white/20 px-3 py-1.5 rounded-lg text-xs font-bold transition-colors">
+                                                Ver en GitHub
+                                            </a>
+                                        </div>
+                                        <div className="border border-gray-700 rounded-lg p-8 text-center bg-black/20">
+                                            <p className="text-gray-400">La integración completa con la API de GitHub para ver commits en tiempo real se implementará próximamente.</p>
+                                        </div>
                                     </div>
                                 )}
                             </div>
-                        </div>
-                    )}
-                </section>
-
-                {/* 2. STATS & ACTIVITY (Sidebar layout below roadmap) */}
-                <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-                    
-                    {/* Financial Summary */}
-                    <div className="bg-white rounded-xl border border-gray-200 p-6 shadow-sm">
-                        <h3 className="font-bold text-gray-900 mb-4 flex items-center gap-2">
-                           <span className="material-symbols-outlined text-gray-400">payments</span> Finanzas del Proyecto
-                        </h3>
-                        <div className="space-y-4">
-                           <div className="flex justify-between items-center p-3 bg-gray-50 rounded-lg">
-                               <span className="text-sm text-gray-500">Presupuesto</span>
-                               <span className="font-bold text-gray-900">${activeProject.finance.total.toLocaleString()}</span>
-                           </div>
-                           <div className="relative pt-2">
-                               <div className="flex justify-between text-xs font-bold text-gray-500 mb-1">
-                                   <span>Pagado ({Math.round((activeProject.finance.paid/activeProject.finance.total)*100)}%)</span>
-                                   <span>Escrow</span>
-                               </div>
-                               <div className="flex w-full h-3 rounded-full overflow-hidden">
-                                   <div className="bg-green-500" style={{width: `${(activeProject.finance.paid/activeProject.finance.total)*100}%`}}></div>
-                                   <div className="bg-blue-300" style={{width: `${(activeProject.finance.pending/activeProject.finance.total)*100}%`}}></div>
-                               </div>
-                           </div>
-                           <button onClick={() => navigate('/client/funds')} className="w-full py-2 text-sm text-primary font-bold hover:bg-primary/5 rounded-lg transition-colors">
-                               Administrar Fondos
-                           </button>
-                        </div>
+                        )}
                     </div>
-
-                    {/* Recent Activity Feed */}
-                    <div className="lg:col-span-2 bg-white rounded-xl border border-gray-200 p-6 shadow-sm">
-                       <h3 className="font-bold text-gray-900 mb-4 flex items-center gap-2">
-                           <span className="material-symbols-outlined text-gray-400">history</span> Actividad Reciente
-                       </h3>
-                       <div className="space-y-4">
-                           {activeProject.activity.map((act, i) => (
-                               <div key={i} className="flex gap-4 items-start p-3 hover:bg-gray-50 rounded-lg transition-colors border border-transparent hover:border-gray-100">
-                                   <div className={`p-2 rounded-full flex-shrink-0 ${act.type === 'file' ? 'bg-blue-50 text-blue-600' : 'bg-gray-100 text-gray-600'}`}>
-                                       <span className="material-symbols-outlined text-lg">
-                                           {act.type === 'file' ? 'description' : act.type === 'payment' ? 'paid' : 'notifications'}
-                                       </span>
-                                   </div>
-                                   <div>
-                                       <p className="text-sm font-bold text-gray-800">{act.text}</p>
-                                       <p className="text-xs text-gray-400 mt-0.5">{act.time}</p>
-                                   </div>
-                               </div>
-                           ))}
-                       </div>
-                    </div>
-                </div>
-             </div>
-          )}
-       </div>
-    </ClientLayout>
-  );
+                )}
+            </div>
+        </ClientLayout>
+    );
 };
 
 export default ClientProjectTracking;

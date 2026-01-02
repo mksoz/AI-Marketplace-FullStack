@@ -16,6 +16,8 @@ interface Field {
         min?: number | string;
         max?: number | string;
     };
+    isMandatory?: boolean; // New Flag
+    currency?: string; // New: Default currency if pre-selected, or just to mark it
 }
 
 interface Template {
@@ -27,6 +29,34 @@ interface Template {
     updatedAt?: string;
     createdAt?: string;
 }
+
+const MANDATORY_FIELDS: Field[] = [
+    {
+        id: 'mandatory-title',
+        label: 'Título del Proyecto',
+        type: 'text',
+        required: true,
+        isMandatory: true,
+        helperText: 'Asigna un nombre claro a tu proyecto.'
+    },
+    {
+        id: 'mandatory-desc',
+        label: 'Descripción Detallada',
+        type: 'textarea',
+        required: true,
+        isMandatory: true,
+        helperText: 'Describe los objetivos y alcance del trabajo.'
+    },
+    {
+        id: 'mandatory-budget',
+        label: 'Presupuesto Estimado',
+        type: 'number',
+        required: true,
+        isMandatory: true,
+        inputFormat: 'single',
+        validation: { min: 0 }
+    }
+];
 
 const TemplateEditor: React.FC = () => {
     // Main View Mode: 'list' (My Templates) or 'editor' (Working on a template)
@@ -43,17 +73,16 @@ const TemplateEditor: React.FC = () => {
     const [currentTemplateId, setCurrentTemplateId] = useState<string | null>(null);
     const [templateName, setTemplateName] = useState('Nueva Plantilla');
     const [templateDesc, setTemplateDesc] = useState('');
-    const [fields, setFields] = useState<Field[]>([
-        { id: '1', label: 'Objetivos del Proyecto', type: 'textarea', required: true, helperText: 'Describe brevemente qué quieres lograr.' },
-        { id: '2', label: 'Presupuesto Estimado', type: 'number', inputFormat: 'single', required: true, validation: { min: 0 } }
-    ]);
+    const [fields, setFields] = useState<Field[]>(MANDATORY_FIELDS);
     const [status, setStatus] = useState<'DRAFT' | 'PUBLISHED'>('DRAFT');
     const [isSaving, setIsSaving] = useState(false);
 
     // Delete Modal State
     const [deleteModalOpen, setDeleteModalOpen] = useState(false);
     const [templateToDelete, setTemplateToDelete] = useState<string | null>(null);
-    const [deleteConfirmCheck, setDeleteConfirmCheck] = useState(false);
+
+    // Currencies
+    const currencyOptions = ['EUR', 'USD', 'GBP'];
 
     useEffect(() => {
         loadTemplates();
@@ -80,7 +109,20 @@ const TemplateEditor: React.FC = () => {
     const handleEdit = (t: Template) => {
         setTemplateName(t.name);
         setTemplateDesc(t.description || '');
-        setFields(t.structure as Field[]);
+
+        // Ensure mandatory fields exist if opening an old template (migration logic)
+        let loadedFields = t.structure as Field[];
+        const hasTitle = loadedFields.some(f => f.id === 'mandatory-title');
+        const hasDesc = loadedFields.some(f => f.id === 'mandatory-desc');
+        const hasBudget = loadedFields.some(f => f.id === 'mandatory-budget');
+
+        if (!hasTitle || !hasDesc || !hasBudget) {
+            // Prepend missing mandatory fields
+            const missing = MANDATORY_FIELDS.filter(mf => !loadedFields.some(lf => lf.id === mf.id));
+            loadedFields = [...missing, ...loadedFields];
+        }
+
+        setFields(loadedFields);
         setStatus(t.status);
         setCurrentTemplateId(t.id);
         setEditorTab('build');
@@ -90,9 +132,7 @@ const TemplateEditor: React.FC = () => {
     const resetEditor = () => {
         setTemplateName('Nueva Plantilla de Requisitos');
         setTemplateDesc('');
-        setFields([
-            { id: Date.now().toString(), label: 'Descripción del Proyecto', type: 'textarea', required: true }
-        ]);
+        setFields([...MANDATORY_FIELDS]);
         setStatus('DRAFT');
         setCurrentTemplateId(null);
         setEditorTab('build');
@@ -102,7 +142,6 @@ const TemplateEditor: React.FC = () => {
     const handleDeleteClick = (id: string, e: React.MouseEvent) => {
         e.stopPropagation();
         setTemplateToDelete(id);
-        setDeleteConfirmCheck(false);
         setDeleteModalOpen(true);
     };
 
@@ -122,11 +161,27 @@ const TemplateEditor: React.FC = () => {
 
     const handleSave = async (newStatus: 'DRAFT' | 'PUBLISHED') => {
         try {
+            if (status === 'PUBLISHED' && newStatus === 'DRAFT') {
+                alert("No se puede devolver una plantilla publicada a borrador.");
+                return;
+            }
+
             setIsSaving(true);
+
+            // Strictly enforce IDs for system fields before saving
+            const sanitizedFields = fields.map(f => {
+                if (f.isMandatory) {
+                    if (f.label.toLowerCase().includes('título') || f.label.toLowerCase().includes('title')) return { ...f, id: 'mandatory-title' };
+                    if (f.label.toLowerCase().includes('descripc') || f.label.toLowerCase().includes('desc')) return { ...f, id: 'mandatory-desc' };
+                    if (f.label.toLowerCase().includes('presupuesto') || f.label.toLowerCase().includes('budget')) return { ...f, id: 'mandatory-budget' };
+                }
+                return f;
+            });
+
             const payload = {
                 name: templateName,
                 description: templateDesc,
-                structure: fields,
+                structure: sanitizedFields,
                 isDefault: false,
                 status: newStatus
             };
@@ -150,26 +205,40 @@ const TemplateEditor: React.FC = () => {
     };
 
     const addField = (type: Field['type']) => {
+        if (status === 'PUBLISHED') return; // Lockdown
         const newField: Field = {
             id: Date.now().toString(),
             label: type === 'text' ? 'Texto Corto' : type === 'textarea' ? 'Texto Largo' : type === 'number' ? 'Número' : type === 'date' ? 'Fecha' : 'Selección',
             type,
             required: false,
             inputFormat: (type === 'number' || type === 'date') ? 'single' : undefined,
-            options: type === 'select' ? ['Opción 1', 'Opción 2'] : undefined
+            options: type === 'select' ? ['Opción 1', 'Opción 2'] : undefined,
+            isMandatory: false
         };
         setFields([...fields, newField]);
     };
 
     const updateField = (id: string, updates: Partial<Field>) => {
+        // Validation: Cannot uncheck required for mandatory fields
+        const target = fields.find(f => f.id === id);
+        if (target?.isMandatory && updates.required === false) {
+            return;
+        }
+
+        if (status === 'PUBLISHED') return;
+
         setFields(fields.map(f => f.id === id ? { ...f, ...updates } : f));
     };
 
     const removeField = (id: string) => {
+        if (status === 'PUBLISHED') return; // Lockdown
+        const target = fields.find(f => f.id === id);
+        if (target?.isMandatory) return; // Prevent deleting mandatory
         setFields(fields.filter(f => f.id !== id));
     };
 
     const moveField = (index: number, direction: 'up' | 'down') => {
+        if (status === 'PUBLISHED') return; // Lockdown
         const newFields = [...fields];
         if (direction === 'up' && index > 0) {
             [newFields[index], newFields[index - 1]] = [newFields[index - 1], newFields[index]];
@@ -286,7 +355,7 @@ const TemplateEditor: React.FC = () => {
                         <input
                             value={templateName}
                             onChange={e => setTemplateName(e.target.value)}
-                            className="text-xl font-bold bg-transparent border-none focus:ring-0 p-0 text-gray-900 placeholder:text-gray-300 w-96 outline-none"
+                            className="text-xl font-bold bg-transparent border-none focus:ring-0 p-0 text-gray-900 placeholder:text-gray-300 w-full outline-none"
                             placeholder="Nombre de la Plantilla"
                         />
                         <input
@@ -315,10 +384,19 @@ const TemplateEditor: React.FC = () => {
                         </button>
                     </div>
 
-                    <Button variant="ghost" onClick={() => handleSave('DRAFT')} disabled={isSaving}>Guardar Borrador</Button>
-                    <Button variant="primary" onClick={() => handleSave('PUBLISHED')} disabled={isSaving}>
-                        {status === 'PUBLISHED' ? 'Actualizar y Publicar' : 'Publicar Plantilla'}
-                    </Button>
+                    {status === 'DRAFT' && (
+                        <Button variant="ghost" onClick={() => handleSave('DRAFT')} disabled={isSaving}>Guardar Borrador</Button>
+                    )}
+                    {status === 'PUBLISHED' ? (
+                        <div className="flex items-center gap-2 px-4 py-2 bg-green-50 text-green-700 rounded-lg border border-green-200">
+                            <span className="material-symbols-outlined text-sm">lock</span>
+                            <span className="text-sm font-bold">Plantilla Publicada</span>
+                        </div>
+                    ) : (
+                        <Button variant="primary" onClick={() => handleSave('PUBLISHED')} disabled={isSaving}>
+                            Publicar Plantilla
+                        </Button>
+                    )}
                 </div>
             </div>
 
@@ -328,8 +406,8 @@ const TemplateEditor: React.FC = () => {
                 {editorTab === 'build' ? (
                     // BUILDER VIEW
                     <>
-                        {/* Left: Toolbar */}
-                        <div className="w-64 bg-white border-r border-gray-200 p-6 overflow-y-auto hidden lg:block shrink-0 animate-in fade-in slide-in-from-left duration-300">
+                        {/* Left: Toolbar - Disabled if Published */}
+                        <div className={`w-64 bg-white border-r border-gray-200 p-6 overflow-y-auto hidden lg:block shrink-0 animate-in fade-in slide-in-from-left duration-300 ${status === 'PUBLISHED' ? 'opacity-50 pointer-events-none grayscale' : ''}`}>
                             <h3 className="text-xs font-bold text-gray-400 uppercase tracking-wide mb-4">Elementos</h3>
                             <div className="space-y-3">
                                 {[
@@ -357,24 +435,37 @@ const TemplateEditor: React.FC = () => {
                             </div>
                         </div>
 
-                        {/* Center: Builder Canvas */}
-                        <div className="flex-1 bg-gray-50 overflow-y-auto p-8 flex justify-center animate-in fade-in duration-300">
-                            <div className="w-full max-w-2xl bg-white rounded-2xl shadow-sm border border-gray-200 min-h-[600px] flex flex-col h-fit">
-                                <div className="p-8 border-b border-gray-100 group/header relative hover:bg-gray-50/50 transition-colors rounded-t-2xl">
-                                    <div className="absolute top-4 right-4 opacity-0 group-hover/header:opacity-100 transition-opacity pointer-events-none">
-                                        <span className="material-symbols-outlined text-gray-300">edit</span>
-                                    </div>
+                        {/* Center: Builder Canvas - Block Layout for safe scrolling */}
+                        <div className="flex-1 bg-gray-50 overflow-y-auto p-8 animate-in fade-in duration-300">
+
+                            {status === 'PUBLISHED' && (
+                                <div className="mb-6 bg-amber-50 rounded-full px-4 py-1.5 text-xs font-bold text-amber-700 border border-amber-200 shadow-sm flex items-center gap-2 max-w-2xl mx-auto">
+                                    <span className="material-symbols-outlined text-sm">lock</span>
+                                    Modo Edición Limitada: La plantilla está publicada y protegida contra cambios.
+                                </div>
+                            )}
+
+                            <div className="w-full max-w-2xl mx-auto space-y-6">
+                                {/* Template Header Info */}
+                                <div className="bg-white rounded-2xl shadow-sm border border-gray-200 p-8 border-b border-gray-100 group/header relative hover:bg-gray-50/50 transition-colors">
+                                    {status !== 'PUBLISHED' && (
+                                        <div className="absolute top-4 right-4 opacity-0 group-hover/header:opacity-100 transition-opacity pointer-events-none">
+                                            <span className="material-symbols-outlined text-gray-300">edit</span>
+                                        </div>
+                                    )}
                                     <input
                                         type="text"
                                         value={templateName}
                                         onChange={(e) => setTemplateName(e.target.value)}
-                                        className="w-full text-3xl font-black text-gray-900 placeholder:text-gray-300 border-none p-0 focus:ring-0 outline-none bg-transparent"
+                                        disabled={status === 'PUBLISHED'}
+                                        className="w-full text-3xl font-black text-gray-900 placeholder:text-gray-300 border-none p-0 focus:ring-0 outline-none bg-transparent disabled:opacity-50 disabled:cursor-not-allowed"
                                         placeholder="Título de la Plantilla"
                                     />
                                     <textarea
                                         value={templateDesc}
                                         onChange={(e) => setTemplateDesc(e.target.value)}
-                                        className="w-full text-base text-gray-500 placeholder:text-gray-300 border-none p-0 focus:ring-0 outline-none resize-none bg-transparent mt-2 block field-sizing-content"
+                                        disabled={status === 'PUBLISHED'}
+                                        className="w-full text-base text-gray-500 placeholder:text-gray-300 border-none p-0 focus:ring-0 outline-none resize-none bg-transparent mt-2 block disabled:opacity-50 disabled:cursor-not-allowed"
                                         placeholder="Descripción o instrucciones generales para el cliente..."
                                         rows={1}
                                         style={{ minHeight: '1.5rem', height: 'auto' }}
@@ -386,154 +477,201 @@ const TemplateEditor: React.FC = () => {
                                     />
                                 </div>
 
-                                <div className="p-8 space-y-8 flex-1">
-                                    {fields.map((field, idx) => (
-                                        <div key={field.id} className="relative group border-2 border-transparent hover:border-primary/20 rounded-xl p-4 transition-all -mx-4 hover:bg-gray-50/50">
-                                            {/* Actions */}
-                                            <div className="absolute right-4 top-4 hidden group-hover:flex gap-2 z-10">
-                                                <button onClick={() => moveField(idx, 'up')} disabled={idx === 0} className="p-1.5 bg-white text-gray-500 rounded-md shadow-sm border border-gray-100 hover:bg-gray-50 disabled:opacity-50">
-                                                    <span className="material-symbols-outlined text-lg">arrow_upward</span>
-                                                </button>
-                                                <button onClick={() => moveField(idx, 'down')} disabled={idx === fields.length - 1} className="p-1.5 bg-white text-gray-500 rounded-md shadow-sm border border-gray-100 hover:bg-gray-50 disabled:opacity-50">
-                                                    <span className="material-symbols-outlined text-lg">arrow_downward</span>
-                                                </button>
-                                                <button onClick={() => removeField(field.id)} className="p-1.5 bg-white text-red-500 rounded-md shadow-sm border border-gray-100 hover:bg-red-50">
-                                                    <span className="material-symbols-outlined text-lg">delete</span>
-                                                </button>
-                                            </div>
+                                {/* SYSTEM FIELDS SECTION */}
+                                <div className="bg-white rounded-2xl shadow-sm border border-indigo-100 overflow-hidden">
+                                    <div className="bg-indigo-50/50 px-6 py-4 border-b border-indigo-100 flex items-center gap-2">
+                                        <span className="material-symbols-outlined text-indigo-600">settings_account_box</span>
+                                        <h3 className="font-bold text-indigo-900 text-sm uppercase tracking-wide">Configuración del Proyecto (Campos Sistema)</h3>
+                                    </div>
+                                    <div className="p-6 space-y-6">
+                                        {/* Mandatory Title & Desc (Implicitly handled by System, but we show them as 'locked' visuals or editable labels if needed?) 
+                                            Actually, let's allow editing the LABEL of these fields to customize user experience 
+                                        */}
+                                        {fields.filter(f => f.isMandatory).map(field => (
+                                            <div key={field.id} className="flex gap-4 items-start">
+                                                <div className="mt-2 text-indigo-300">
+                                                    <span className="material-symbols-outlined">
+                                                        {field.id.includes('budget') ? 'attach_money' : field.id.includes('title') ? 'title' : 'description'}
+                                                    </span>
+                                                </div>
+                                                <div className="flex-1 space-y-2">
+                                                    <div className="flex justify-between">
+                                                        <label className="text-xs font-bold text-indigo-400 uppercase">{field.id.includes('budget') ? 'Campo de Presupuesto' : field.id.includes('title') ? 'Campo de Título' : 'Campo de Descripción'}</label>
+                                                        <span className="text-[10px] bg-indigo-100 text-indigo-600 px-2 py-0.5 rounded-full font-bold">REQUERIDO</span>
+                                                    </div>
+                                                    <input
+                                                        value={field.label}
+                                                        onChange={(e) => updateField(field.id, { label: e.target.value })}
+                                                        className="font-bold text-gray-900 bg-transparent border-b border-gray-200 focus:border-indigo-500 p-0 focus:ring-0 w-full placeholder:text-gray-300 text-base outline-none pb-1 transition-colors"
+                                                        placeholder="Etiqueta del campo..."
+                                                        disabled={status === 'PUBLISHED'}
+                                                    />
+                                                    <input
+                                                        value={field.helperText || ''}
+                                                        onChange={(e) => updateField(field.id, { helperText: e.target.value })}
+                                                        className="text-sm text-gray-500 bg-transparent border-none p-0 focus:ring-0 w-full placeholder:text-gray-300 italic outline-none"
+                                                        placeholder="Instrucciones para el cliente..."
+                                                        disabled={status === 'PUBLISHED'}
+                                                    />
 
-                                            <div className="space-y-3">
-                                                {/* Label Edit */}
-                                                <input
-                                                    value={field.label}
-                                                    onChange={(e) => updateField(field.id, { label: e.target.value })}
-                                                    className="font-bold text-gray-900 bg-transparent border-none p-0 focus:ring-0 w-full placeholder:text-gray-300 text-lg outline-none"
-                                                    placeholder="Escribe la pregunta aquí..."
-                                                />
-
-                                                {/* Helper Text Edit */}
-                                                <input
-                                                    value={field.helperText || ''}
-                                                    onChange={(e) => updateField(field.id, { helperText: e.target.value })}
-                                                    className="text-sm text-gray-500 bg-transparent border-none p-0 focus:ring-0 w-full placeholder:text-gray-300 italic outline-none"
-                                                    placeholder="Añade una descripción o ayuda para el cliente (opcional)"
-                                                />
-
-                                                {/* Field Configuration Area */}
-                                                <div className="p-4 bg-gray-50 rounded-lg border border-gray-200/50 space-y-4">
-
-                                                    {/* Type Specific Configs */}
-                                                    {field.type === 'select' && (
-                                                        <div className="space-y-2">
-                                                            <label className="text-xs font-bold text-gray-500 uppercase">Opciones (separadas por coma)</label>
-                                                            <input
-                                                                value={field.options?.join(', ') || ''}
-                                                                onChange={(e) => updateField(field.id, { options: e.target.value.split(',').map(s => s.trim()) })}
-                                                                className="w-full text-sm bg-white border border-gray-200 rounded-md px-3 py-2 outline-none focus:border-primary"
-                                                                placeholder="Opción 1, Opción 2, Opción 3"
-                                                            />
-                                                        </div>
-                                                    )}
-
-                                                    {(field.type === 'number' || field.type === 'date') && (
-                                                        <div className="space-y-4">
-                                                            <div>
-                                                                <label className="text-xs font-bold text-gray-500 uppercase mb-2 block">Tipo de Entrada para el Cliente</label>
-                                                                <div className="flex gap-4">
-                                                                    <label className="flex items-center gap-2 text-sm text-gray-700 cursor-pointer">
-                                                                        <input
-                                                                            type="radio"
-                                                                            name={`format-${field.id}`}
-                                                                            checked={field.inputFormat === 'single'}
-                                                                            onChange={() => updateField(field.id, { inputFormat: 'single' })}
-                                                                        />
-                                                                        Valor Único (Ej. Presupuesto exacto, Fecha límite)
-                                                                    </label>
-                                                                    <label className="flex items-center gap-2 text-sm text-gray-700 cursor-pointer">
-                                                                        <input
-                                                                            type="radio"
-                                                                            name={`format-${field.id}`}
-                                                                            checked={field.inputFormat === 'range'}
-                                                                            onChange={() => updateField(field.id, { inputFormat: 'range' })}
-                                                                        />
-                                                                        Rango (Ej. Entre $100-$200, Entre dos fechas)
-                                                                    </label>
-                                                                </div>
-                                                            </div>
-
-                                                            <div className="grid grid-cols-2 gap-4 pt-2 border-t border-gray-200/50">
-                                                                <div className="space-y-1">
-                                                                    <label className="text-xs font-bold text-gray-500 uppercase">Restricción Mínima (Opcional)</label>
-                                                                    <input
-                                                                        type={field.type === 'date' ? 'date' : 'number'}
-                                                                        value={field.validation?.min || ''}
-                                                                        onChange={(e) => updateField(field.id, { validation: { ...field.validation, min: e.target.value } })}
-                                                                        className="w-full text-sm bg-white border border-gray-200 rounded-md px-3 py-2 outline-none focus:border-primary"
-                                                                        placeholder={field.type === 'number' ? "Ej. 100" : ""}
-                                                                    />
-                                                                </div>
-                                                                <div className="space-y-1">
-                                                                    <label className="text-xs font-bold text-gray-500 uppercase">Restricción Máxima (Opcional)</label>
-                                                                    <input
-                                                                        type={field.type === 'date' ? 'date' : 'number'}
-                                                                        value={field.validation?.max || ''}
-                                                                        onChange={(e) => updateField(field.id, { validation: { ...field.validation, max: e.target.value } })}
-                                                                        className="w-full text-sm bg-white border border-gray-200 rounded-md px-3 py-2 outline-none focus:border-primary"
-                                                                        placeholder={field.type === 'number' ? "Ej. 10000" : ""}
-                                                                    />
-                                                                </div>
-                                                            </div>
-                                                        </div>
-                                                    )}
-
-                                                    {/* Preview of Input (Disabled) */}
-                                                    <div className="opacity-60 pointer-events-none pt-2">
-                                                        {field.type === 'textarea' ? (
-                                                            <div className="h-24 bg-white rounded-lg border border-gray-300 w-full"></div>
-                                                        ) : field.type === 'select' ? (
-                                                            <div className="h-10 bg-white rounded-lg border border-gray-300 w-full flex items-center px-4 text-gray-400 text-sm justify-between">
-                                                                <span>Seleccione una opción...</span>
-                                                                <span className="material-symbols-outlined text-sm">expand_more</span>
-                                                            </div>
-                                                        ) : (
+                                                    {/* Budget Specifics */}
+                                                    {field.id === 'mandatory-budget' && (
+                                                        <div className="mt-2 flex items-center gap-4 bg-gray-50 p-2 rounded-lg">
+                                                            <span className="text-xs text-gray-500">Divisa Visualización:</span>
                                                             <div className="flex gap-2">
-                                                                <div className="h-10 bg-white rounded-lg border border-gray-300 w-full flex items-center px-4 text-gray-400 text-sm">
-                                                                    {field.type === 'date' ? 'dd/mm/aaaa' : '0.00'}
-                                                                </div>
-                                                                {field.inputFormat === 'range' && (
-                                                                    <>
-                                                                        <span className="self-center text-gray-400">-</span>
-                                                                        <div className="h-10 bg-white rounded-lg border border-gray-300 w-full flex items-center px-4 text-gray-400 text-sm">
-                                                                            {field.type === 'date' ? 'dd/mm/aaaa' : '0.00'}
-                                                                        </div>
-                                                                    </>
-                                                                )}
+                                                                {['USD', 'EUR', 'GBP'].map(curr => (
+                                                                    <span key={curr} className={`text-xs font-bold px-2 py-1 rounded cursor-default ${curr === 'USD' ? 'bg-white shadow-sm text-gray-900' : 'text-gray-400'}`}>{curr}</span>
+                                                                ))}
+                                                            </div>
+                                                        </div>
+                                                    )}
+                                                </div>
+                                            </div>
+                                        ))}
+                                    </div>
+                                </div>
+
+                                {/* DRAGGABLE CONTENT AREA */}
+                                <div className="bg-white rounded-2xl shadow-sm border border-gray-200 p-8 space-y-8 min-h-[300px]">
+                                    <h3 className="text-xs font-bold text-gray-400 uppercase tracking-wide mb-4">Preguntas Adicionales</h3>
+
+                                    {fields.filter(f => !f.isMandatory).map((field, idx) => {
+                                        // Find actual index in full array for movement
+                                        const realIndex = fields.findIndex(f => f.id === field.id);
+                                        return (
+                                            <div key={field.id} className={`relative group border-2 border-transparent hover:border-primary/20 rounded-xl p-4 transition-all ${status !== 'PUBLISHED' ? 'hover:bg-gray-50/50' : ''}`}>
+
+                                                {/* Actions */}
+                                                {status !== 'PUBLISHED' && (
+                                                    <div className="absolute right-4 top-4 hidden group-hover:flex gap-2 z-10">
+                                                        <button onClick={() => moveField(realIndex, 'up')} disabled={realIndex <= fields.filter(f => f.isMandatory).length} className="p-1.5 bg-white text-gray-500 rounded-md shadow-sm border border-gray-100 hover:bg-gray-50 disabled:opacity-50">
+                                                            <span className="material-symbols-outlined text-lg">arrow_upward</span>
+                                                        </button>
+                                                        <button onClick={() => moveField(realIndex, 'down')} disabled={realIndex === fields.length - 1} className="p-1.5 bg-white text-gray-500 rounded-md shadow-sm border border-gray-100 hover:bg-gray-50 disabled:opacity-50">
+                                                            <span className="material-symbols-outlined text-lg">arrow_downward</span>
+                                                        </button>
+                                                        <button onClick={() => removeField(field.id)} className="p-1.5 bg-white text-red-500 rounded-md shadow-sm border border-gray-100 hover:bg-red-50">
+                                                            <span className="material-symbols-outlined text-lg">delete</span>
+                                                        </button>
+                                                    </div>
+                                                )}
+
+                                                <div className="space-y-3">
+                                                    {/* Label Edit */}
+                                                    <input
+                                                        value={field.label}
+                                                        onChange={(e) => updateField(field.id, { label: e.target.value })}
+                                                        className="font-bold text-gray-900 bg-transparent border-none p-0 focus:ring-0 w-full placeholder:text-gray-300 text-lg outline-none"
+                                                        placeholder="Escribe la pregunta aquí..."
+                                                        disabled={status === 'PUBLISHED'}
+                                                    />
+
+                                                    {/* Helper Text Edit */}
+                                                    <input
+                                                        value={field.helperText || ''}
+                                                        onChange={(e) => updateField(field.id, { helperText: e.target.value })}
+                                                        className="text-sm text-gray-500 bg-transparent border-none p-0 focus:ring-0 w-full placeholder:text-gray-300 italic outline-none"
+                                                        placeholder="Añade una descripción o ayuda para el cliente (opcional)"
+                                                        disabled={status === 'PUBLISHED'}
+                                                    />
+
+                                                    {/* Field Configuration Area */}
+                                                    <div className="p-4 bg-gray-50 rounded-lg border border-gray-200/50 space-y-4">
+
+                                                        {/* Type Specific Configs */}
+                                                        {field.type === 'select' && (
+                                                            <div className="space-y-2">
+                                                                <label className="text-xs font-bold text-gray-500 uppercase">Opciones (separadas por coma)</label>
+                                                                <input
+                                                                    value={field.options?.join(', ') || ''}
+                                                                    onChange={(e) => updateField(field.id, { options: e.target.value.split(',').map(s => s.trim()) })}
+                                                                    disabled={status === 'PUBLISHED'}
+                                                                    className="w-full text-sm bg-white border border-gray-200 rounded-md px-3 py-2 outline-none focus:border-primary disabled:bg-gray-100"
+                                                                    placeholder="Opción 1, Opción 2, Opción 3"
+                                                                />
                                                             </div>
                                                         )}
+
+                                                        {(field.type === 'number' || field.type === 'date') && (
+                                                            <div className="space-y-4">
+                                                                <div>
+                                                                    <label className="text-xs font-bold text-gray-500 uppercase mb-2 block">Tipo de Entrada para el Cliente</label>
+                                                                    <div className="flex gap-4">
+                                                                        <label className="flex items-center gap-2 text-sm text-gray-700 cursor-pointer">
+                                                                            <input
+                                                                                type="radio"
+                                                                                name={`format-${field.id}`}
+                                                                                checked={field.inputFormat === 'single'}
+                                                                                onChange={() => updateField(field.id, { inputFormat: 'single' })}
+                                                                                disabled={status === 'PUBLISHED'}
+                                                                            />
+                                                                            Valor Único
+                                                                        </label>
+                                                                        <label className="flex items-center gap-2 text-sm text-gray-700 cursor-pointer">
+                                                                            <input
+                                                                                type="radio"
+                                                                                name={`format-${field.id}`}
+                                                                                checked={field.inputFormat === 'range'}
+                                                                                onChange={() => updateField(field.id, { inputFormat: 'range' })}
+                                                                                disabled={status === 'PUBLISHED'}
+                                                                            />
+                                                                            Rango
+                                                                        </label>
+                                                                    </div>
+                                                                </div>
+                                                            </div>
+                                                        )}
+
+                                                        {/* Preview of Input (Disabled) */}
+                                                        <div className="opacity-60 pointer-events-none pt-2">
+                                                            {field.type === 'textarea' ? (
+                                                                <div className="h-24 bg-white rounded-lg border border-gray-300 w-full"></div>
+                                                            ) : field.type === 'select' ? (
+                                                                <div className="h-10 bg-white rounded-lg border border-gray-300 w-full flex items-center px-4 text-gray-400 text-sm justify-between">
+                                                                    <span>Seleccione una opción...</span>
+                                                                    <span className="material-symbols-outlined text-sm">expand_more</span>
+                                                                </div>
+                                                            ) : (
+                                                                <div className="flex gap-2">
+                                                                    <div className="h-10 bg-white rounded-lg border border-gray-300 w-full flex items-center px-4 text-gray-400 text-sm justify-between">
+                                                                        <span>{field.type === 'date' ? 'dd/mm/aaaa' : '0.00'}</span>
+                                                                    </div>
+                                                                    {field.inputFormat === 'range' && (
+                                                                        <>
+                                                                            <span className="self-center text-gray-400">-</span>
+                                                                            <div className="h-10 bg-white rounded-lg border border-gray-300 w-full flex items-center px-4 text-gray-400 text-sm">
+                                                                                {field.type === 'date' ? 'dd/mm/aaaa' : '0.00'}
+                                                                            </div>
+                                                                        </>
+                                                                    )}
+                                                                </div>
+                                                            )}
+                                                        </div>
+                                                    </div>
+
+                                                    <div className="flex items-center gap-4 pt-1">
+                                                        <label className="flex items-center gap-2 cursor-pointer">
+                                                            <input
+                                                                type="checkbox"
+                                                                checked={field.required}
+                                                                onChange={(e) => updateField(field.id, { required: e.target.checked })}
+                                                                disabled={status === 'PUBLISHED'}
+                                                                className="w-4 h-4 text-primary rounded border-gray-300 focus:ring-primary disabled:opacity-50"
+                                                            />
+                                                            <span className="text-xs font-medium text-gray-500">Obligatorio</span>
+                                                        </label>
+                                                        <span className="text-xs text-gray-300">|</span>
+                                                        <span className="text-xs text-gray-400 uppercase font-bold">{field.type}</span>
                                                     </div>
                                                 </div>
-
-                                                <div className="flex items-center gap-4 pt-1">
-                                                    <label className="flex items-center gap-2 cursor-pointer">
-                                                        <input
-                                                            type="checkbox"
-                                                            checked={field.required}
-                                                            onChange={(e) => updateField(field.id, { required: e.target.checked })}
-                                                            className="w-4 h-4 text-primary rounded border-gray-300 focus:ring-primary"
-                                                        />
-                                                        <span className="text-xs font-medium text-gray-500">Obligatorio</span>
-                                                    </label>
-                                                    <span className="text-xs text-gray-300">|</span>
-                                                    <span className="text-xs text-gray-400 uppercase font-bold">{field.type}</span>
-                                                </div>
                                             </div>
-                                        </div>
-                                    ))}
+                                        )
+                                    })}
 
-                                    {fields.length === 0 && (
+                                    {fields.filter(f => !f.isMandatory).length === 0 && (
                                         <div className="text-center py-12 text-gray-300">
                                             <span className="material-symbols-outlined text-4xl mb-2">move_item</span>
-                                            <p>Arrastra elementos o haz clic para añadir campos</p>
+                                            <p>Arrastra elementos o haz clic para añadir campos vacíos</p>
                                         </div>
                                     )}
                                 </div>
@@ -578,13 +716,27 @@ const TemplateEditor: React.FC = () => {
                                                 </select>
                                             ) : (
                                                 <div className="flex gap-4">
-                                                    <input
-                                                        type={field.type}
-                                                        min={field.validation?.min}
-                                                        max={field.validation?.max}
-                                                        className="w-full rounded-xl border-gray-300 shadow-sm focus:border-primary focus:ring-primary h-11 px-4"
-                                                        placeholder={field.inputFormat === 'range' ? (field.type === 'date' ? 'Desde...' : 'Mínimo...') : 'Tu respuesta...'}
-                                                    />
+                                                    <div className="relative w-full">
+                                                        <input
+                                                            type={field.type}
+                                                            min={field.validation?.min}
+                                                            max={field.validation?.max}
+                                                            className="w-full rounded-xl border-gray-300 shadow-sm focus:border-primary focus:ring-primary h-11 px-4"
+                                                            placeholder={field.inputFormat === 'range' ? (field.type === 'date' ? 'Desde...' : 'Mínimo...') : 'Tu respuesta...'}
+                                                        />
+                                                        {/* Currency Selector for Mandatory Budget */}
+                                                        {field.id === 'mandatory-budget' && (
+                                                            <div className="absolute right-1 top-1 bottom-1">
+                                                                <select
+                                                                    value={field.currency || 'USD'}
+                                                                    onChange={(e) => updateField(field.id, { currency: e.target.value })}
+                                                                    className="h-full border-none bg-gray-50 text-gray-600 font-bold rounded-r-lg focus:ring-0 text-xs px-2 cursor-pointer hover:bg-gray-100"
+                                                                >
+                                                                    {currencyOptions.map(c => <option key={c} value={c}>{c}</option>)}
+                                                                </select>
+                                                            </div>
+                                                        )}
+                                                    </div>
                                                     {field.inputFormat === 'range' && (
                                                         <input
                                                             type={field.type}
@@ -616,38 +768,29 @@ const TemplateEditor: React.FC = () => {
             </div>
         </div>
     );
-
     return (
         <div className="h-full">
-            {view === 'list' && renderList()}
-            {view === 'editor' && renderEditor()}
+            {loading ? (
+                <div className="flex justify-center items-center h-64">
+                    <span className="material-symbols-outlined animate-spin text-primary text-4xl">progress_activity</span>
+                </div>
+            ) : view === 'list' ? (
+                renderList()
+            ) : (
+                renderEditor()
+            )}
 
-            {/* Delete Confirmation Modal */}
             <Modal
                 isOpen={deleteModalOpen}
                 onClose={() => setDeleteModalOpen(false)}
                 title="Eliminar Plantilla"
-                size="sm"
             >
-                <div className="space-y-6">
-                    <div className="bg-red-50 text-red-700 p-4 rounded-xl flex gap-3 items-start">
-                        <span className="material-symbols-outlined shrink-0 mt-0.5">warning</span>
-                        <div className="text-sm">
-                            <p className="font-bold mb-1">¿Eliminar definitivamente?</p>
-                            <p>Esta acción no se puede deshacer.</p>
-                        </div>
-                    </div>
-
-                    <div className="flex gap-3 pt-2">
-                        <Button variant="ghost" onClick={() => setDeleteModalOpen(false)} className="w-full justify-center">
-                            Cancelar
-                        </Button>
-                        <Button
-                            variant="primary"
-                            className="w-full justify-center bg-red-600 hover:bg-red-700 text-white"
-                            onClick={handleConfirmDelete}
-                        >
-                            Eliminar
+                <div className="space-y-4">
+                    <p className="text-gray-600">¿Estás seguro de que deseas eliminar esta plantilla? Esta acción no se puede deshacer.</p>
+                    <div className="flex justify-end gap-3 pt-4">
+                        <Button variant="ghost" onClick={() => setDeleteModalOpen(false)}>Cancelar</Button>
+                        <Button variant="primary" onClick={handleConfirmDelete} className="bg-red-600 hover:bg-red-700 border-transparent text-white">
+                            Sí, eliminar
                         </Button>
                     </div>
                 </div>

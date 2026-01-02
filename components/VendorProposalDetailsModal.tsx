@@ -3,6 +3,7 @@ import Modal from './Modal';
 import Button from './Button';
 import TemplateRenderer from './TemplateRenderer';
 import ContractNegotiation from './ContractNegotiation';
+import ProjectSetupWizard from './ProjectSetupWizard';
 import api from '../services/api';
 import { useNavigate } from 'react-router-dom';
 
@@ -23,6 +24,7 @@ const VendorProposalDetailsModal: React.FC<VendorProposalDetailsModalProps> = ({
     const [initialMessage, setInitialMessage] = useState('¡Hola! He aceptado tu solicitud de proyecto. ¿Hablamos de los detalles?');
     const [currentUserId, setCurrentUserId] = useState('');
     const [currentUserName, setCurrentUserName] = useState('');
+    const [isSetupWizardOpen, setIsSetupWizardOpen] = useState(false);
 
     useEffect(() => {
         const fetchMe = async () => {
@@ -213,13 +215,28 @@ const VendorProposalDetailsModal: React.FC<VendorProposalDetailsModalProps> = ({
 
                                 {currentStatus === 'ACCEPTED' && (
                                     <div className="flex items-center gap-3">
-                                        <span className="text-xs text-blue-600 font-medium italic">Proyecto en curso (Contrato firmado).</span>
+                                        <span className="text-xs text-blue-600 font-medium italic">Proyecto aceptado (Contrato firmado).</span>
+                                        <Button onClick={() => setIsSetupWizardOpen(true)} className="bg-primary hover:bg-primary/90 text-sm">
+                                            Configurar Proyecto
+                                        </Button>
                                     </div>
                                 )}
                             </>
                         )}
                     </div>
                 </div>
+                {/* Project Setup Wizard */}
+                <ProjectSetupWizard
+                    isOpen={isSetupWizardOpen}
+                    onClose={() => setIsSetupWizardOpen(false)}
+                    projectId={lead.id}
+                    onSuccess={() => {
+                        handleStatusChange('IN_PROGRESS');
+                        onClose();
+                        navigate('/vendor/projects');
+                    }}
+                    initialData={{ budget: lead.budgetVal }}
+                />
             </Modal>
 
             {/* Accept Message Modal */}

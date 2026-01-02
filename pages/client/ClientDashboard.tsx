@@ -2,13 +2,11 @@ import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import ClientLayout from '../../components/ClientLayout';
 import { projectService, Project } from '../../services/projectService';
-import NewProjectModal from '../../components/NewProjectModal';
 import Button from '../../components/Button';
 
 const ClientDashboard: React.FC = () => {
     const navigate = useNavigate();
     const [projects, setProjects] = useState<Project[]>([]);
-    const [isModalOpen, setIsModalOpen] = useState(false);
     const [loading, setLoading] = useState(true);
 
     const fetchProjects = async () => {
@@ -37,11 +35,6 @@ const ClientDashboard: React.FC = () => {
         <ClientLayout>
             <div className="space-y-8 pb-12">
 
-                <NewProjectModal
-                    isOpen={isModalOpen}
-                    onClose={() => setIsModalOpen(false)}
-                    onProjectCreated={fetchProjects}
-                />
 
                 {/* 1. Hero / Welcome Section */}
                 <div className="flex flex-col md:flex-row justify-between items-end gap-4">
@@ -49,7 +42,6 @@ const ClientDashboard: React.FC = () => {
                         <h1 className="text-3xl font-black text-gray-900 tracking-tight">Hola, Cliente</h1>
                         <p className="text-gray-500 mt-1">Gestión de proyectos de IA.</p>
                     </div>
-                    <Button onClick={() => setIsModalOpen(true)}>+ Nuevo Proyecto</Button>
                 </div>
 
                 {/* 2. Key Metrics Cards (Top Level Overview) */}
@@ -111,7 +103,7 @@ const ClientDashboard: React.FC = () => {
                             ) : projects.length === 0 ? (
                                 <div className="text-center py-10 bg-gray-50 rounded-2xl border border-dashed border-gray-300">
                                     <p className="text-gray-500 mb-4">No tienes proyectos activos.</p>
-                                    <Button onClick={() => setIsModalOpen(true)}>Crear Primer Proyecto</Button>
+                                    <Button onClick={() => navigate('/client/projects')}>Ir a Proyectos</Button>
                                 </div>
                             ) : (
                                 projects.map(project => (

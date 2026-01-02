@@ -35,20 +35,25 @@ const ClientLayout: React.FC<ClientLayoutProps> = ({ children, fullHeight = fals
   // State for Expandable Menus
   const [expandedMenus, setExpandedMenus] = useState<string[]>([]);
 
-  // Helper to check active route
+  // Helper to check active route (supports query params)
   const isActive = (path: string, exact = false) => {
-    if (exact) return location.pathname === path;
-    return location.pathname.startsWith(path);
+    const [pathBase, pathQuery] = path.split('?');
+    const matchesPath = exact ? location.pathname === pathBase : location.pathname.startsWith(pathBase);
+
+    if (matchesPath && pathQuery) {
+      return location.search.includes(pathQuery);
+    }
+    return matchesPath;
   };
 
   // Initialize expanded menus based on current active route
   useEffect(() => {
-    const activeParents = menuItems
+    const activeParents = getMenuItems()
       .filter(item => item.subsections && (isActive(item.path!) || item.subsections.some(sub => isActive(sub.path))))
       .map(item => item.path!);
 
     setExpandedMenus(prev => Array.from(new Set([...prev, ...activeParents])));
-  }, [location.pathname]);
+  }, [location.pathname, location.search]);
 
   const toggleMenu = (path: string, e: React.MouseEvent) => {
     e.preventDefault();
@@ -59,77 +64,88 @@ const ClientLayout: React.FC<ClientLayoutProps> = ({ children, fullHeight = fals
     }
   };
 
-  // Menu Configuration
-  const menuItems = [
-    {
-      label: 'Dashboard',
-      path: '/client/dashboard',
-      icon: 'dashboard',
-      exact: true
-    },
-    {
-      label: 'Proyectos',
-      path: '/client/projects',
-      icon: 'business_center',
-      subsections: [
-        { label: 'Seguimiento', path: '/client/projects/track' },
-        { label: 'Archivos', path: '/client/projects/files' },
-        { label: 'Hitos y Entregables', path: '/client/projects/deliverables' }
-      ]
-    },
-    {
-      label: 'Calendario',
-      path: '/client/calendar',
-      icon: 'calendar_month'
-    },
-    {
-      label: 'Propuestas',
-      path: '/client/proposals',
-      icon: 'description'
-    },
-    {
-      label: 'Vendors',
-      path: '/client/vendors',
-      icon: 'store'
-    },
-    {
-      label: 'Mensajes',
-      path: '/client/messages',
-      icon: 'chat'
-    },
-    {
-      label: 'Notificaciones',
-      path: '/client/notifications',
-      icon: 'notifications'
-    },
-    {
-      type: 'divider'
-    },
-    {
-      type: 'label',
-      label: 'Cuenta'
-    },
-    {
-      label: 'Mi Perfil',
-      path: '/client/profile',
-      icon: 'person'
-    },
-    {
-      label: 'Fondos',
-      path: '/client/funds',
-      icon: 'account_balance_wallet'
-    },
-    {
-      label: 'Configuración',
-      path: '/client/settings',
-      icon: 'settings'
-    },
-    {
-      label: 'Ayuda',
-      path: '/support',
-      icon: 'help'
-    }
-  ];
+  // Dynamic Menu Configuration
+  const menuItems = React.useMemo(() => {
+    const projectMatch = location.pathname.match(/^\/client\/projects\/([^/]+)/);
+    const projectId = projectMatch ? projectMatch[1] : null;
+
+    const baseItems = [
+      {
+        label: 'Dashboard',
+        path: '/client/dashboard',
+        icon: 'dashboard',
+        exact: true
+      },
+      {
+        label: 'Proyectos',
+        path: '/client/projects',
+        icon: 'business_center',
+        // Dynamic subsections if inside a project
+        subsections: projectId ? [
+          { label: 'Visión General', path: `/client/projects/${projectId}?tab=dashboard` },
+          { label: 'Archivos', path: `/client/projects/${projectId}?tab=files` },
+          { label: 'Finanzas', path: `/client/projects/${projectId}?tab=financials` },
+          { label: 'Incidencias', path: `/client/projects/${projectId}?tab=incidents` },
+        ] : undefined
+      },
+      {
+        label: 'Calendario',
+        path: '/client/calendar',
+        icon: 'calendar_month'
+      },
+      {
+        label: 'Propuestas',
+        path: '/client/proposals',
+        icon: 'description'
+      },
+      {
+        label: 'Vendors',
+        path: '/client/vendors',
+        icon: 'store'
+      },
+      {
+        label: 'Mensajes',
+        path: '/client/messages',
+        icon: 'chat'
+      },
+      {
+        label: 'Notificaciones',
+        path: '/client/notifications',
+        icon: 'notifications'
+      },
+      {
+        type: 'divider'
+      },
+      {
+        type: 'label',
+        label: 'Cuenta'
+      },
+      {
+        label: 'Mi Perfil',
+        path: '/client/profile',
+        icon: 'person'
+      },
+      {
+        label: 'Fondos',
+        path: '/client/funds',
+        icon: 'account_balance_wallet'
+      },
+      {
+        label: 'Configuración',
+        path: '/client/settings',
+        icon: 'settings'
+      },
+      {
+        label: 'Ayuda',
+        path: '/support',
+        icon: 'help'
+      }
+    ];
+    return baseItems;
+  }, [location.pathname]);
+
+  // Compatibility helper for Effect
+  const getMenuItems = () => menuItems;
 
   // Breadcrumb Logic
   const generateBreadcrumbs = () => {

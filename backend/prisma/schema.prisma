@@ -42,6 +42,8 @@ model User {
   conversations Conversation[]
   messages      Message[]
   notifications Notification[]
+  
+  reportedIncidents Incident[] @relation("Reporter")
 }
 
 model ClientProfile {
@@ -111,15 +113,53 @@ model Project {
   
   // Reason for rejection if status is DECLINED
   rejectionReason String?
+  
+  // Tracking & Management
+  startDate   DateTime?
+  endDate     DateTime?
+  repoUrl     String?
+  repoName    String?
 
   createdAt   DateTime      @default(now())
   updatedAt   DateTime      @updatedAt
 
   milestones  Milestone[]
   proposals   Proposal[]
+  files       ProjectFile[]
+  folders     ProjectFolder[]
   
   conversation Conversation?
   contract     Contract?
+  
+  // New Relations
+  incidents   Incident[]
+  reviews     Review[]
+}
+
+model ProjectFolder {
+  id        String   @id @default(uuid())
+  name      String
+  projectId String
+  project   Project  @relation(fields: [projectId], references: [id])
+  parent    ProjectFolder? @relation("FolderHierarchy", fields: [parentId], references: [id])
+  parentId  String?
+  children  ProjectFolder[] @relation("FolderHierarchy")
+  files     ProjectFile[]
+  createdAt DateTime @default(now())
+}
+
+model ProjectFile {
+  id        String   @id @default(uuid())
+  name      String
+  url       String
+  size      Int
+  mimeType  String
+  projectId String
+  project   Project  @relation(fields: [projectId], references: [id])
+  folderId  String?
+  folder    ProjectFolder? @relation(fields: [folderId], references: [id])
+  uploaderId String
+  createdAt DateTime @default(now())
 }
 
 
@@ -128,9 +168,12 @@ model Milestone {
   projectId String
   project   Project         @relation(fields: [projectId], references: [id])
   title     String
+  description String?
   amount    Float
   status    MilestoneStatus @default(PENDING)
   dueDate   DateTime?
+  order     Int             @default(0)
+  isPaid    Boolean         @default(false)
 }
 
 model Proposal {
@@ -147,6 +190,8 @@ model Proposal {
 
 model Review {
   id        String   @id @default(uuid())
+  projectId String?  
+  project   Project? @relation(fields: [projectId], references: [id])
   vendorId  String
   vendor    VendorProfile @relation(fields: [vendorId], references: [id])
   rating    Int
@@ -190,7 +235,6 @@ enum ContractStatus {
   CANCELLED
 }
 
-
 model Contract {
   id              String         @id @default(uuid())
   projectId       String         @unique
@@ -233,6 +277,39 @@ enum NotificationType {
   SUCCESS
   WARNING
   ERROR
+}
+
+enum IncidentStatus {
+  OPEN
+  IN_PROGRESS
+  RESOLVED
+  CLOSED
+}
+
+enum IncidentPriority {
+  LOW
+  MEDIUM
+  HIGH
+  CRITICAL
+}
+
+model Incident {
+  id          String   @id @default(uuid())
+  projectId   String
+  project     Project  @relation(fields: [projectId], references: [id])
+  
+  reporterId  String
+  reporter    User     @relation("Reporter", fields: [reporterId], references: [id])
+  
+  title       String
+  description String
+  status      IncidentStatus   @default(OPEN)
+  priority    IncidentPriority @default(MEDIUM)
+  
+  resolution  String?
+  
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
 }
 
 model Notification {

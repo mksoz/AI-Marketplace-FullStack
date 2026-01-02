@@ -92,14 +92,24 @@ const ProposalSubmissionModal: React.FC<ProposalSubmissionModalProps> = ({ isOpe
             // We use the first text/textarea answer as description, or a default
             const description = selectedTemplate.name + ' Request';
 
-            // Try to find a budget field or default to 0
-            // const budgetField = selectedTemplate.structure.find(f => f.label.toLowerCase().includes('presupuesto') || f.label.toLowerCase().includes('budget'));
-            // const budget = budgetField ? formData[budgetField.id] : 0;
+            // Extract Budget using Strict Mapping or Label Fallback
+            let budget = 0;
+            // 1. Check Strict ID
+            if (formData['mandatory-budget']) {
+                budget = parseFloat(formData['mandatory-budget']);
+            }
+            // 2. Fallback Label Search
+            else {
+                const budgetField = selectedTemplate.structure.find(f => f.label.toLowerCase().includes('presupuesto') || f.label.toLowerCase().includes('budget'));
+                if (budgetField && formData[budgetField.id]) {
+                    budget = parseFloat(formData[budgetField.id]);
+                }
+            }
 
             await api.post('/projects/request', {
                 title: `Solicitud: ${selectedTemplate.name}`,
                 description: description, // In real app, maybe concatenate Q&A
-                budget: 0, // Placeholder
+                budget: budget || 0, // Ensure no NaN
                 vendorId: vendorId,
                 templateData: {
                     templateId: selectedTemplate.id,
@@ -182,28 +192,32 @@ const ProposalSubmissionModal: React.FC<ProposalSubmissionModalProps> = ({ isOpe
                                             onChange={(e) => handleInputChange(field.id, e.target.value)}
                                             placeholder="Escribe aquí..."
                                         />
-                                    ) : field.type === 'select' ? (
-                                        <select
-                                            className="w-full rounded-xl border-gray-300 shadow-sm focus:border-primary focus:ring-primary h-11 px-4"
-                                            value={formData[field.id] || ''}
-                                            onChange={(e) => handleInputChange(field.id, e.target.value)}
-                                        >
-                                            <option value="">Selecciona una opción...</option>
-                                            {field.options?.map((opt, i) => (
-                                                <option key={i} value={opt}>{opt}</option>
-                                            ))}
-                                        </select>
                                     ) : (
                                         // Number, Date, Text
-                                        <input
-                                            type={field.type}
-                                            min={field.validation?.min}
-                                            max={field.validation?.max}
-                                            className="w-full rounded-xl border-gray-300 shadow-sm focus:border-primary focus:ring-primary h-11 px-4"
-                                            placeholder="Tu respuesta..."
-                                            value={formData[field.id] || ''}
-                                            onChange={(e) => handleInputChange(field.id, e.target.value)}
-                                        />
+                                        field.id === 'mandatory-budget' ? (
+                                            <div className="relative">
+                                                <input
+                                                    type="number"
+                                                    min={field.validation?.min}
+                                                    max={field.validation?.max}
+                                                    className="w-full rounded-xl border-gray-300 shadow-sm focus:border-primary focus:ring-primary h-11 px-4"
+                                                    placeholder="Respuesta..."
+                                                    value={formData[field.id] || ''}
+                                                    onChange={(e) => handleInputChange(field.id, e.target.value)}
+                                                />
+                                                <span className="absolute right-4 top-2.5 text-gray-400 font-bold text-sm">USD</span>
+                                            </div>
+                                        ) : (
+                                            <input
+                                                type={field.type}
+                                                min={field.validation?.min}
+                                                max={field.validation?.max}
+                                                className="w-full rounded-xl border-gray-300 shadow-sm focus:border-primary focus:ring-primary h-11 px-4"
+                                                placeholder="Respuesta..."
+                                                value={formData[field.id] || ''}
+                                                onChange={(e) => handleInputChange(field.id, e.target.value)}
+                                            />
+                                        )
                                     )}
                                 </div>
                             ))}

@@ -38,6 +38,7 @@ const VendorProposals: React.FC = () => {
         'CONTACTED': 'En Negociación',
         'IN_NEGOTIATION': 'En Negociación',
         'ACCEPTED': 'Aceptada',
+        'IN_PROGRESS': 'Finalizada',
         'COMPLETED': 'Finalizada',
         'DECLINED': 'Perdido',
     };
@@ -89,8 +90,8 @@ const VendorProposals: React.FC = () => {
     const columns = [
         { id: 'Pendiente', label: 'Pendientes', color: 'bg-blue-50 border-blue-200' },
         { id: 'En Negociación', label: 'En Negociación', color: 'bg-purple-50 border-purple-200' },
-        { id: 'Aceptada', label: 'Proyectos Activos', color: 'bg-teal-50 border-teal-200' },
-        { id: 'Finalizada', label: 'Finalizados', color: 'bg-green-50 border-green-200' }
+        { id: 'Aceptada', label: 'Proyectos Aceptados (Pend. Configuración)', color: 'bg-teal-50 border-teal-200' },
+        { id: 'Finalizada', label: 'Cerradas / Ganadas', color: 'bg-green-50 border-green-200' }
     ];
 
     // Sorting for List View
@@ -118,6 +119,8 @@ const VendorProposals: React.FC = () => {
         if (sortConfig?.key !== key) return <span className="material-symbols-outlined text-[10px] text-gray-300">unfold_more</span>;
         return <span className="material-symbols-outlined text-[10px] text-primary">{sortConfig.direction === 'asc' ? 'expand_less' : 'expand_more'}</span>;
     };
+
+    const pendingSetups = leads.filter(l => l.rawStatus === 'ACCEPTED').length;
 
     return (
         <VendorLayout>
@@ -180,7 +183,11 @@ const VendorProposals: React.FC = () => {
                                     <div>
                                         <h3 className="font-bold text-sm">Insight del Agente</h3>
                                         <p className="text-indigo-100 text-xs">
-                                            {leads.length > 0 ? `Tienes ${leads.length} propuestas activas.` : 'No hay propuestas aún. ¡Optimiza tus plantillas!'}
+                                            {pendingSetups > 0
+                                                ? `Tienes ${pendingSetups} proyecto${pendingSetups > 1 ? 's' : ''} pendiente${pendingSetups > 1 ? 's' : ''} de configurar.`
+                                                : leads.length > 0
+                                                    ? `Tienes ${leads.length} propuestas activas en tu pipeline.`
+                                                    : 'No hay propuestas aún. ¡Optimiza tus plantillas!'}
                                         </p>
                                     </div>
                                 </div>
@@ -248,6 +255,11 @@ const VendorProposals: React.FC = () => {
                                                                                     <span className="material-symbols-outlined text-[10px]">edit_document</span> FIRMA PENDIENTE
                                                                                 </span>
                                                                             )}
+                                                                            {lead.rawStatus === 'ACCEPTED' && (
+                                                                                <span className="text-[9px] font-bold text-blue-600 bg-blue-50 px-1.5 py-0.5 rounded border border-blue-100 flex items-center gap-1 animate-pulse mb-1">
+                                                                                    <span className="material-symbols-outlined text-[10px]">settings</span> CONFIGURACIÓN PENDIENTE
+                                                                                </span>
+                                                                            )}
                                                                             <span className="text-[10px] text-gray-400 block text-right">{lead.date}</span>
                                                                         </div>
                                                                     </div>
@@ -312,6 +324,11 @@ const VendorProposals: React.FC = () => {
                                                                 FIRMA PENDIENTE
                                                             </span>
                                                         )}
+                                                        {lead.rawStatus === 'ACCEPTED' && (
+                                                            <span className="text-[8px] font-bold text-blue-600 bg-blue-50 px-1.5 py-0.5 rounded border border-blue-100 animate-pulse">
+                                                                CONFIGURACIÓN PENDIENTE
+                                                            </span>
+                                                        )}
                                                         <button className="p-2 border border-gray-200 rounded-lg hover:bg-primary hover:text-white hover:border-primary text-gray-400 transition-colors">
                                                             <span className="material-symbols-outlined text-lg">arrow_forward</span>
                                                         </button>
@@ -327,7 +344,7 @@ const VendorProposals: React.FC = () => {
                 )}
 
                 {activeTab === 'template' && (
-                    <div className="h-full flex-1 min-h-0 animate-in fade-in duration-300">
+                    <div className="flex-1 flex flex-col animate-in fade-in duration-300">
                         <TemplateEditor />
                     </div>
                 )}

@@ -27,5 +27,12 @@ export const templateService = {
     getMyTemplates: async (): Promise<RequirementTemplate[]> => {
         const response = await api.get('/templates');
         return response.data;
+    },
+
+    getPublishedTemplates: async (): Promise<RequirementTemplate[]> => {
+        // In a real app, this would be a public endpoint or filtered query
+        const response = await api.get('/templates');
+        // @ts-ignore
+        return response.data.filter((t: any) => t.status === 'PUBLISHED');
     }
 };

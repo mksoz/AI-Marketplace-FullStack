@@ -15,6 +15,7 @@ import VendorLayout from './components/VendorLayout';
 import ClientDashboard from './pages/client/ClientDashboard';
 import ClientProfile from './pages/client/ClientProfile';
 import ClientProjects from './pages/client/ClientProjects';
+import ClientProjectDetails from './pages/client/ClientProjectDetails';
 import ClientProposals from './pages/client/ClientProposals';
 import ClientVendors from './pages/client/ClientVendors';
 import ClientFunds from './pages/client/ClientFunds';
@@ -31,6 +32,7 @@ import ClientCalendar from './pages/client/ClientCalendar';
 // Vendor Views
 import VendorDashboard from './pages/vendor/VendorDashboard';
 import VendorProjects from './pages/vendor/VendorProjects';
+import VendorProjectDetails from './pages/vendor/VendorProjectDetails';
 import VendorProposals from './pages/vendor/VendorProposals';
 import TemplateEditor from './pages/vendor/TemplateEditor';
 import VendorClients from './pages/vendor/VendorClients';
@@ -83,9 +85,8 @@ const App: React.FC = () => {
         <Route path="/client/dashboard" element={<ProtectedRoute><ClientDashboard /></ProtectedRoute>} />
         <Route path="/client/profile" element={<ProtectedRoute><ClientProfile /></ProtectedRoute>} />
         <Route path="/client/projects" element={<ProtectedRoute><ClientProjects /></ProtectedRoute>} />
-        <Route path="/client/projects/track" element={<ProtectedRoute><ClientProjectTracking /></ProtectedRoute>} />
-        <Route path="/client/projects/files" element={<ProtectedRoute><ClientProjectFiles /></ProtectedRoute>} />
-        <Route path="/client/projects/deliverables" element={<ProtectedRoute><ClientProjectDeliverables /></ProtectedRoute>} />
+        <Route path="/client/projects" element={<ProtectedRoute><ClientProjects /></ProtectedRoute>} />
+        <Route path="/client/projects/:id" element={<ProtectedRoute><ClientProjectDetails /></ProtectedRoute>} />
 
         <Route path="/client/proposals" element={<ProtectedRoute><ClientProposals /></ProtectedRoute>} />
         <Route path="/client/vendors" element={<ProtectedRoute><ClientVendors /></ProtectedRoute>} />
@@ -100,6 +101,8 @@ const App: React.FC = () => {
 
         {/* Vendor Protected Routes */}
         <Route path="/vendor/dashboard" element={<ProtectedRoute><VendorDashboard /></ProtectedRoute>} />
+        <Route path="/vendor/projects" element={<ProtectedRoute><VendorProjects /></ProtectedRoute>} />
+        <Route path="/vendor/projects/:id" element={<ProtectedRoute><VendorProjectDetails /></ProtectedRoute>} />
         <Route path="/vendor/projects" element={<ProtectedRoute><VendorProjects /></ProtectedRoute>} />
         <Route path="/vendor/proposals" element={<ProtectedRoute><VendorProposals /></ProtectedRoute>} />
         <Route path="/vendor/templates" element={<ProtectedRoute><VendorLayout><TemplateEditor /></VendorLayout></ProtectedRoute>} />
