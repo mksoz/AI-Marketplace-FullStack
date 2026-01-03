@@ -25,25 +25,27 @@ const ClientProjects: React.FC = () => {
             setLoading(true);
             const res = await api.get('/projects/my-projects');
 
-            const mappedProjects = res.data.map((p: any) => {
-                const activeIncidents = p.incidents?.filter((i: any) => i.status !== 'RESOLVED' && i.status !== 'CLOSED') || [];
-                const criticalIncidents = activeIncidents.filter((i: any) => i.priority === 'CRITICAL' || i.priority === 'HIGH');
+            const mappedProjects = res.data
+                .filter((p: any) => ['IN_PROGRESS', 'COMPLETED', 'ACCEPTED'].includes(p.status))
+                .map((p: any) => {
+                    const activeIncidents = p.incidents?.filter((i: any) => i.status !== 'RESOLVED' && i.status !== 'CLOSED') || [];
+                    const criticalIncidents = activeIncidents.filter((i: any) => i.priority === 'CRITICAL' || i.priority === 'HIGH');
 
-                return {
-                    ...p,
-                    name: p.title,
-                    vendor: p.vendor?.companyName || 'Pendiente de Asignación',
-                    image: `https://ui-avatars.com/api/?name=${p.title}&background=0D8ABC&color=fff`,
-                    tracking: { phase: 'En Desarrollo', nextEvent: 'Revisión Semanal', date: 'Mañana' },
-                    deliverables: { current: 'Hito 2', pendingReview: p.milestones?.some((m: any) => m.status === 'COMPLETED' && !m.isPaid), nextPayment: '15 Feb' },
-                    files: { count: p.files?.length || 0, lastUpload: 'Hace 2 días', time: '10:30 AM' },
-                    incidentsStats: {
-                        count: activeIncidents.length,
-                        critical: criticalIncidents.length,
-                        latest: activeIncidents.length > 0 ? activeIncidents[0].title : 'Sin incidencias activas'
-                    }
-                };
-            });
+                    return {
+                        ...p,
+                        name: p.title,
+                        vendor: p.vendor?.companyName || 'Pendiente de Asignación',
+                        image: `https://ui-avatars.com/api/?name=${p.title}&background=0D8ABC&color=fff`,
+                        tracking: { phase: 'En Desarrollo', nextEvent: 'Revisión Semanal', date: 'Mañana' },
+                        deliverables: { current: 'Hito 2', pendingReview: p.milestones?.some((m: any) => m.status === 'COMPLETED' && !m.isPaid), nextPayment: '15 Feb' },
+                        files: { count: p.files?.length || 0, lastUpload: 'Hace 2 días', time: '10:30 AM' },
+                        incidentsStats: {
+                            count: activeIncidents.length,
+                            critical: criticalIncidents.length,
+                            latest: activeIncidents.length > 0 ? activeIncidents[0].title : 'Sin incidencias activas'
+                        }
+                    };
+                });
             setProjects(mappedProjects);
         } catch (error) {
             console.error("Error fetching projects", error);
@@ -57,9 +59,14 @@ const ClientProjects: React.FC = () => {
     }, []);
 
     // Logic for filtering projects based on selection or dropdown search
+    // Logic for filtering projects based on selection or dropdown search
     const filteredProjects = projects.filter(p => {
         if (selectedContext.id !== 'all') {
             return p.id === selectedContext.id;
+        }
+        if (searchQuery.trim()) {
+            const q = searchQuery.toLowerCase();
+            return p.name.toLowerCase().includes(q) || p.vendor.toLowerCase().includes(q);
         }
         return true;
     });
@@ -101,7 +108,7 @@ const ClientProjects: React.FC = () => {
 
                     <button
                         onClick={() => setIsModalOpen(true)}
-                        className="px-6 py-3 bg-gray-900 text-white font-bold rounded-xl hover:bg-black shadow-lg shadow-gray-200 flex items-center gap-2 transition-transform hover:-translate-y-0.5"
+                        className="px-6 py-3 bg-primary text-white font-bold rounded-xl hover:bg-red-700 shadow-lg shadow-primary/20 flex items-center gap-2 transition-transform hover:-translate-y-0.5"
                     >
                         <span className="material-symbols-outlined">add_circle</span>
                         Nuevo Proyecto
@@ -112,67 +119,53 @@ const ClientProjects: React.FC = () => {
                 <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
 
                     {/* Advanced Search */}
-                    <div className="lg:col-span-8 bg-white p-2 rounded-2xl border border-gray-200 shadow-sm relative z-20" ref={searchRef}>
-                        <div className="relative">
-                            <button
-                                onClick={() => setIsSearchOpen(!isSearchOpen)}
-                                className="w-full flex items-center justify-between bg-gray-50 hover:bg-white border border-transparent hover:border-gray-200 text-gray-900 text-left rounded-xl px-4 py-3 transition-all group"
-                            >
-                                <div className="flex items-center gap-4">
-                                    <div className="w-10 h-10 rounded-lg bg-white border border-gray-100 flex items-center justify-center shadow-sm">
-                                        <span className="material-symbols-outlined text-primary">search</span>
-                                    </div>
-                                    <div>
-                                        <span className="block font-bold text-sm text-gray-400 uppercase tracking-wider mb-0.5">Filtrar Vista</span>
-                                        <span className="block font-bold text-lg leading-none">{selectedContext.name}</span>
-                                    </div>
-                                </div>
-                                <span className={`material-symbols-outlined text-gray-400 transition-transform duration-300 ${isSearchOpen ? 'rotate-180' : ''}`}>expand_more</span>
-                            </button>
-
-                            {isSearchOpen && (
-                                <div className="absolute top-full left-0 w-full bg-white rounded-xl shadow-2xl border border-gray-100 mt-2 p-2 animate-in fade-in zoom-in-95 duration-200 overflow-hidden">
-                                    <div className="relative mb-2 px-2 pt-2">
-                                        <span className="material-symbols-outlined absolute left-5 top-1/2 -translate-y-1/2 text-gray-400">search</span>
-                                        <input
-                                            type="text"
-                                            placeholder="Escribe para buscar..."
-                                            className="w-full pl-10 pr-4 py-3 bg-gray-50 border border-gray-100 rounded-xl text-sm font-medium focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all"
-                                            value={searchQuery}
-                                            onChange={(e) => setSearchQuery(e.target.value)}
-                                            autoFocus
-                                        />
-                                    </div>
-                                    <div className="max-h-60 overflow-y-auto space-y-1 p-2 custom-scrollbar">
-                                        <button
-                                            onClick={() => {
-                                                setSelectedContext({ name: 'Todos los Proyectos', vendor: 'Vista General', id: 'all' });
-                                                setIsSearchOpen(false);
-                                                setSearchQuery('');
-                                            }}
-                                            className="w-full text-left px-4 py-3 rounded-xl flex items-center gap-3 hover:bg-gray-50 transition-colors"
-                                        >
-                                            <div className="w-8 h-8 rounded-full bg-gray-100 flex items-center justify-center text-gray-500">
-                                                <span className="material-symbols-outlined text-lg">dashboard</span>
-                                            </div>
-                                            <div>
-                                                <p className="font-bold text-sm text-gray-900">Todos los Proyectos</p>
-                                                <p className="text-xs text-gray-500">Mostrar lista completa</p>
-                                            </div>
+                    <div className="lg:col-span-8 bg-white p-6 rounded-2xl border border-gray-200 shadow-sm relative z-20" ref={searchRef}>
+                        <div className="w-full relative z-20">
+                            <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Buscar Proyecto</label>
+                            <div className="relative">
+                                <div
+                                    className="flex items-center gap-3 w-full bg-white border border-gray-200 rounded-xl px-4 py-3 shadow-sm focus-within:ring-2 focus-within:ring-primary/20 focus-within:border-primary transition-all"
+                                    onClick={() => setIsSearchOpen(true)}
+                                >
+                                    <span className="material-symbols-outlined text-gray-400">search</span>
+                                    <input
+                                        type="text"
+                                        placeholder="Escribe para buscar..."
+                                        className="flex-1 bg-transparent outline-none text-gray-900 font-medium placeholder:text-gray-400"
+                                        value={searchQuery}
+                                        onChange={(e) => {
+                                            setSearchQuery(e.target.value);
+                                            // Reset selection when typing to allow free text filtering
+                                            if (selectedContext.id !== 'all') {
+                                                setSelectedContext({ id: 'all', name: 'Todos los Proyectos', vendor: 'Vista General' });
+                                            }
+                                            setIsSearchOpen(true);
+                                        }}
+                                        onFocus={() => setIsSearchOpen(true)}
+                                    />
+                                    {searchQuery && (
+                                        <button onClick={(e) => {
+                                            e.stopPropagation();
+                                            setSearchQuery('');
+                                            setSelectedContext({ id: 'all', name: 'Todos los Proyectos', vendor: 'Vista General' });
+                                        }} className="text-gray-400 hover:text-gray-600">
+                                            <span className="material-symbols-outlined text-sm">close</span>
                                         </button>
+                                    )}
+                                </div>
 
-                                        <div className="border-t border-gray-50 my-2"></div>
-
+                                {isSearchOpen && (
+                                    <div className="absolute top-full left-0 w-full bg-white rounded-xl shadow-floating border border-gray-100 mt-2 p-2 animate-in fade-in zoom-in-95 duration-200 max-h-80 overflow-y-auto z-50">
                                         {dropdownSuggestions.length > 0 ? (
                                             dropdownSuggestions.map(p => (
                                                 <button
                                                     key={p.id}
                                                     onClick={() => {
+                                                        setSearchQuery(p.name);
                                                         setSelectedContext({ name: p.name, vendor: p.vendor, id: p.id });
                                                         setIsSearchOpen(false);
-                                                        setSearchQuery('');
                                                     }}
-                                                    className="w-full text-left px-4 py-3 rounded-xl flex items-center gap-3 hover:bg-gray-50 group transition-colors"
+                                                    className="w-full text-left px-3 py-2 rounded-lg flex items-center gap-3 hover:bg-gray-50 group transition-colors"
                                                 >
                                                     <img src={p.image} alt={p.name} className="w-8 h-8 rounded-lg bg-gray-100 object-cover" />
                                                     <div className="flex-1">
@@ -182,11 +175,11 @@ const ClientProjects: React.FC = () => {
                                                 </button>
                                             ))
                                         ) : (
-                                            <p className="text-center text-gray-500 text-sm py-4">No se encontraron resultados</p>
+                                            <p className="text-center text-gray-500 text-sm py-4">No se encontraron proyectos</p>
                                         )}
                                     </div>
-                                </div>
-                            )}
+                                )}
+                            </div>
                         </div>
                     </div>
 

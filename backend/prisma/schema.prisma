@@ -54,7 +54,8 @@ model ClientProfile {
   industry    String?
   website     String?
   
-  projects    Project[]
+  projects      Project[]
+  savedVendors  SavedVendor[]
 }
 
 enum MilestoneStatus {
@@ -73,12 +74,13 @@ model VendorProfile {
   hourlyRate  Float?
   skills      String[] 
   
-  proposals   Proposal[]
-  reviews     Review[]
-  templates   RequirementTemplate[] @relation("VendorTemplates")
+  proposals       Proposal[]
+  reviews         Review[]
+  templates       RequirementTemplate[] @relation("VendorTemplates")
   
   // Projects where this vendor is directly assigned/requested
-  projects    Project[] @relation("VendorProjects")
+  projects        Project[] @relation("VendorProjects")
+  savedByClients  SavedVendor[]
 }
 
 model RequirementTemplate {
@@ -323,3 +325,17 @@ model Notification {
   isRead      Boolean          @default(false)
   createdAt   DateTime         @default(now())
 }
+
+// SavedVendor: Tracks which clients have saved/favorited which vendors
+model SavedVendor {
+  id        String   @id @default(uuid())
+  clientId  String
+  vendorId  String
+  createdAt DateTime @default(now())
+  
+  client ClientProfile @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  vendor VendorProfile @relation(fields: [vendorId], references: [id], onDelete: Cascade)
+  
+  @@unique([clientId, vendorId])
+}
+

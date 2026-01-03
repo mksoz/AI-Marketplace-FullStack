@@ -238,11 +238,32 @@ const VendorProjectDetails: React.FC = () => {
                                             isEditing={isRoadmapEditing}
                                             onCancel={() => setIsRoadmapEditing(false)}
                                             onSave={async (newMilestones, note) => {
-                                                console.log('Updating roadmap:', newMilestones, 'Note:', note);
-                                                // Simulate API delay
-                                                await new Promise(resolve => setTimeout(resolve, 1000));
-                                                setProject({ ...project, milestones: newMilestones });
-                                                setIsRoadmapEditing(false); // Close edit mode on success interaction within component
+                                                try {
+                                                    console.log('Updating roadmap:', newMilestones, 'Note:', note);
+
+                                                    // Make API call to persist changes
+                                                    await api.post(`/projects/${project.id}/setup`, {
+                                                        milestones: newMilestones,
+                                                        startDate: project.startDate,
+                                                        endDate: project.endDate,
+                                                        repoUrl: project.repoUrl,
+                                                        repoName: project.repoName
+                                                    });
+
+                                                    // Update local state after successful API call
+                                                    setProject({ ...project, milestones: newMilestones });
+                                                    setIsRoadmapEditing(false);
+
+                                                    // Optionally send notification to client if note provided
+                                                    if (note?.trim()) {
+                                                        // TODO: Send notification via messaging system
+                                                        console.log('Notification to client:', note);
+                                                    }
+                                                } catch (error) {
+                                                    console.error('Error updating roadmap:', error);
+                                                    alert('Error al actualizar el roadmap. Por favor intenta de nuevo.');
+                                                    throw error; // Prevent modal from showing success
+                                                }
                                             }}
                                         />
                                     </div>

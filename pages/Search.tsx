@@ -8,6 +8,7 @@ import { MOCK_COMPANIES } from '../constants';
 import { Company } from '../types';
 import { sendMessageToGemini } from '../services/geminiService';
 import { vendorService } from '../services/vendorService';
+import api from '../services/api';
 
 const Search: React.FC = () => {
   const [searchParams] = useSearchParams();
@@ -41,6 +42,13 @@ const Search: React.FC = () => {
 
   const [isLoading, setIsLoading] = useState(true);
 
+  // Saved vendors state
+  const [savedVendorIds, setSavedVendorIds] = useState<Set<string>>(new Set());
+
+  // Pagination state
+  const [currentPage, setCurrentPage] = useState(1);
+  const vendorsPerPage = 10;
+
   useEffect(() => {
     chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [chatMessages]);
@@ -55,6 +63,15 @@ const Search: React.FC = () => {
       try {
         setIsLoading(true);
         const data = await vendorService.getAllVendors();
+
+        // Initialize saved vendors from API data
+        const savedIds = new Set<string>();
+        data.forEach((v: any) => {
+          if (v.isSaved) {
+            savedIds.add(v.id);
+          }
+        });
+        setSavedVendorIds(savedIds);
 
         // Map Backend Data to Frontend Company Interface
         const mappedCompanies: Company[] = data.map((v: any) => ({
@@ -116,6 +133,7 @@ const Search: React.FC = () => {
     }
 
     setFilteredCompanies(result);
+    setCurrentPage(1); // Reset to page 1 when filters change
   }, [activeFilters, companies, initialQuery]);
 
   const handleCompanyClick = (company: Company) => {
@@ -150,6 +168,38 @@ const Search: React.FC = () => {
         : [...current, value];
       return { ...prev, [type]: updated };
     });
+  };
+
+  // Save/unsave vendor functionality
+  const handleToggleSaveVendor = async (vendorId: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+
+    try {
+      const response = await api.post(`/vendors/${vendorId}/save`);
+
+      if (response.data.saved) {
+        setSavedVendorIds(prev => new Set([...prev, vendorId]));
+      } else {
+        setSavedVendorIds(prev => {
+          const updated = new Set(prev);
+          updated.delete(vendorId);
+          return updated;
+        });
+      }
+    } catch (error) {
+      console.error('Error toggling vendor save:', error);
+    }
+  };
+
+  // Pagination helpers
+  const totalPages = Math.ceil(filteredCompanies.length / vendorsPerPage);
+  const startIndex = (currentPage - 1) * vendorsPerPage;
+  const paginatedCompanies = filteredCompanies.slice(startIndex, startIndex + vendorsPerPage);
+
+  const goToPage = (page: number) => {
+    if (page >= 1 && page <= totalPages) {
+      setCurrentPage(page);
+    }
   };
 
   // Helper to simulate matches for the UI
@@ -218,7 +268,7 @@ const Search: React.FC = () => {
                 </button>
               </div>
             ) : (
-              filteredCompanies.map(company => {
+              paginatedCompanies.map(company => {
                 const matches = getMatches(company, initialQuery);
                 return (
                   <div
@@ -262,10 +312,11 @@ const Search: React.FC = () => {
                     </div>
 
                     <button
-                      onClick={(e) => { e.stopPropagation(); /* Logic to save */ }}
-                      className="absolute bottom-4 right-4 p-2 rounded-full hover:bg-gray-200 text-gray-400 hover:text-primary transition-colors"
+                      onClick={(e) => handleToggleSaveVendor(company.id, e)}
+                      className={`absolute bottom-4 right-4 p-2 rounded-full hover:bg-gray-200 transition-colors ${savedVendorIds.has(company.id) ? 'text-primary' : 'text-gray-400 hover:text-primary'
+                        }`}
                     >
-                      <span className="material-symbols-outlined text-xl">favorite</span>
+                      <span className={`material-symbols-outlined text-xl ${savedVendorIds.has(company.id) ? 'filled' : ''}`}>favorite</span>
                     </button>
                   </div>
                 );
@@ -274,12 +325,36 @@ const Search: React.FC = () => {
           </div>
 
           {/* Pagination */}
-          <div className="p-4 border-t border-gray-100 flex justify-center gap-2">
-            <button className="p-2 rounded-lg hover:bg-gray-100 disabled:opacity-50"><span className="material-symbols-outlined">chevron_left</span></button>
-            <button className="w-8 h-8 rounded-lg bg-dark text-white text-sm font-medium">1</button>
-            <button className="w-8 h-8 rounded-lg hover:bg-gray-100 text-gray-600 text-sm font-medium">2</button>
-            <button className="p-2 rounded-lg hover:bg-gray-100"><span className="material-symbols-outlined">chevron_right</span></button>
-          </div>
+          {totalPages > 1 && (
+            <div className="p-4 border-t border-gray-100 flex justify-center items-center gap-2">
+              <button
+                onClick={() => goToPage(currentPage - 1)}
+                disabled={currentPage === 1}
+                className="p-2 rounded-lg hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                <span className="material-symbols-outlined">chevron_left</span>
+              </button>
+
+              {Array.from({ length: totalPages }, (_, i) => i + 1).map(page => (
+                <button
+                  key={page}
+                  onClick={() => goToPage(page)}
+                  className={`w-8 h-8 rounded-lg text-sm font-medium transition-colors ${currentPage === page ? 'bg-dark text-white' : 'hover:bg-gray-100 text-gray-600'
+                    }`}
+                >
+                  {page}
+                </button>
+              ))}
+
+              <button
+                onClick={() => goToPage(currentPage + 1)}
+                disabled={currentPage === totalPages}
+                className="p-2 rounded-lg hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                <span className="material-symbols-outlined">chevron_right</span>
+              </button>
+            </div>
+          )}
         </aside>
 
         {/* Chat FAB (Mobile Only) */}
@@ -386,8 +461,12 @@ const Search: React.FC = () => {
                     <div className="flex gap-3 w-full">
                       <Button fullWidth onClick={() => handleProposalRedirect(selectedCompany.id)}>Enviar Propuesta</Button>
                       <Button variant="outline" fullWidth onClick={() => navigate(`/company/${selectedCompany.id}`)}>Ver Perfil</Button>
-                      <button className="p-3 rounded-lg border border-gray-200 hover:bg-gray-50 text-gray-400 hover:text-primary transition-colors flex-shrink-0">
-                        <span className="material-symbols-outlined">favorite</span>
+                      <button
+                        onClick={(e) => handleToggleSaveVendor(selectedCompany.id, e)}
+                        className={`p-3 rounded-lg border border-gray-200 hover:bg-gray-50 transition-colors flex-shrink-0 ${savedVendorIds.has(selectedCompany.id) ? 'text-primary border-primary' : 'text-gray-400 hover:text-primary'
+                          }`}
+                      >
+                        <span className={`material-symbols-outlined ${savedVendorIds.has(selectedCompany.id) ? 'filled' : ''}`}>favorite</span>
                       </button>
                     </div>
                   </div>

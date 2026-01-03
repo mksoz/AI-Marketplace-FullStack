@@ -51,7 +51,16 @@ const VendorProposalDetailsModal: React.FC<VendorProposalDetailsModalProps> = ({
     const currentStatus = lead.rawStatus;
 
     // Tabs availability based on status or active navigation
-    const showContract = ['IN_NEGOTIATION', 'ACCEPTED', 'CONTACTED'].includes(currentStatus) || activeTab === 'contract';
+    // For COMPLETED/IN_PROGRESS (Cerradas/Ganadas), only show contract if both parties have signed
+    const isBothSigned = lead.contract?.clientSigned && lead.contract?.vendorSigned;
+    const isClosedStatus = currentStatus === 'COMPLETED' || currentStatus === 'IN_PROGRESS';
+
+    const showContract = (
+        isClosedStatus
+            ? isBothSigned // Only show for closed if both signed
+            : ['IN_NEGOTIATION', 'ACCEPTED', 'CONTACTED'].includes(currentStatus)
+    ) || activeTab === 'contract';
+
     const showConfiguracion = currentStatus === 'ACCEPTED' || activeTab === 'configuracion';
 
     const handleStatusChange = async (newStatus: string, reason?: string, message?: string) => {
@@ -220,7 +229,7 @@ const VendorProposalDetailsModal: React.FC<VendorProposalDetailsModalProps> = ({
                                 </div>
                             ) : (
                                 <>
-                                    {currentStatus !== 'DECLINED' && currentStatus !== 'ACCEPTED' && (
+                                    {currentStatus !== 'DECLINED' && currentStatus !== 'ACCEPTED' && currentStatus !== 'IN_PROGRESS' && currentStatus !== 'COMPLETED' && (
                                         <Button variant="ghost" className="text-red-500 hover:bg-red-50 hover:text-red-600" onClick={() => setRejecting(true)}>
                                             Rechazar Propuesta
                                         </Button>

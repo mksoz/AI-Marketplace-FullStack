@@ -63,7 +63,8 @@ const VendorProposals: React.FC = () => {
                 date: new Date(p.createdAt).toLocaleDateString(),
                 templateData: p.templateData || { answers: {}, structure: [] },
                 description: p.description,
-                needsSignature: p.contract && !p.contract.vendorSigned && p.status === 'IN_NEGOTIATION'
+                needsSignature: p.contract && !p.contract.vendorSigned && p.status === 'IN_NEGOTIATION',
+                contract: p.contract // Include contract object to check signatures
             }));
             setLeads(data);
         } catch (error) {

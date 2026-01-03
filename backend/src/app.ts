@@ -6,8 +6,13 @@ import routes from './routes';
 const app: Application = express();
 
 // Middleware
+app.use(cors({
+    origin: true, // Allow all origins dynamically
+    credentials: true,
+    methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
+    allowedHeaders: ['Content-Type', 'Authorization', 'Origin', 'Accept']
+}));
 app.use(helmet());
-app.use(cors());
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 

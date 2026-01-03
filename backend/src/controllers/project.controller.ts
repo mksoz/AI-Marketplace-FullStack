@@ -79,12 +79,21 @@ export const getMyProjects = async (req: Request, res: Response) => {
             const clientProfile = await prisma.clientProfile.findUnique({ where: { userId: user.userId } });
             if (!clientProfile) return res.status(404).json({ message: 'Profile not found' });
 
+            // Clients only see projects that are actively running or completed (not proposals)
             const projects = await prisma.project.findMany({
-                where: { clientId: clientProfile.id },
+                where: {
+                    clientId: clientProfile.id,
+                    // Remove status filter to allow ClientProposals to see all stages (Proposals & Projects)
+                    // status: { in: [ProjectStatus.IN_PROGRESS, ProjectStatus.COMPLETED] }
+                },
                 include: {
                     _count: { select: { proposals: true } },
                     vendor: { select: { companyName: true } },
-                    contract: { select: { clientSigned: true, vendorSigned: true, status: true } }
+                    contract: { select: { clientSigned: true, vendorSigned: true, status: true } },
+                    milestones: { select: { status: true } },
+                    files: true,
+                    folders: true,
+                    incidents: true
                 },
                 orderBy: { createdAt: 'desc' }
             });
