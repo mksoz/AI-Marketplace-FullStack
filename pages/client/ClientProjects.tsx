@@ -2,7 +2,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import ClientLayout from '../../components/ClientLayout';
 import NewProjectModal from '../../components/NewProjectModal';
-import { mockProjects } from '../../services/mockData';
+import api from '../../services/api';
 
 const ClientProjects: React.FC = () => {
     const navigate = useNavigate();
@@ -23,32 +23,31 @@ const ClientProjects: React.FC = () => {
     const fetchProjects = async () => {
         try {
             setLoading(true);
-            // Simulate API delay
-            setTimeout(() => {
-                const mappedProjects = mockProjects.map((p: any) => {
-                    const activeIncidents = p.incidents?.filter((i: any) => i.status !== 'RESOLVED' && i.status !== 'CLOSED') || [];
-                    const criticalIncidents = activeIncidents.filter((i: any) => i.priority === 'CRITICAL' || i.priority === 'HIGH');
+            const res = await api.get('/projects/my-projects');
 
-                    return {
-                        ...p,
-                        name: p.title,
-                        vendor: p.vendor?.companyName || 'Pendiente de Asignación',
-                        image: `https://ui-avatars.com/api/?name=${p.title}&background=0D8ABC&color=fff`,
-                        tracking: { phase: 'En Desarrollo', nextEvent: 'Revisión Semanal', date: 'Mañana' },
-                        deliverables: { current: 'Hito 2', pendingReview: p.milestones.some((m: any) => m.status === 'COMPLETED' && !m.isPaid), nextPayment: '15 Feb' },
-                        files: { count: p.files.length, lastUpload: 'Hace 2 días', time: '10:30 AM' },
-                        incidentsStats: {
-                            count: activeIncidents.length,
-                            critical: criticalIncidents.length,
-                            latest: activeIncidents.length > 0 ? activeIncidents[0].title : 'Sin incidencias activas'
-                        }
-                    };
-                });
-                setProjects(mappedProjects);
-                setLoading(false);
-            }, 600);
+            const mappedProjects = res.data.map((p: any) => {
+                const activeIncidents = p.incidents?.filter((i: any) => i.status !== 'RESOLVED' && i.status !== 'CLOSED') || [];
+                const criticalIncidents = activeIncidents.filter((i: any) => i.priority === 'CRITICAL' || i.priority === 'HIGH');
+
+                return {
+                    ...p,
+                    name: p.title,
+                    vendor: p.vendor?.companyName || 'Pendiente de Asignación',
+                    image: `https://ui-avatars.com/api/?name=${p.title}&background=0D8ABC&color=fff`,
+                    tracking: { phase: 'En Desarrollo', nextEvent: 'Revisión Semanal', date: 'Mañana' },
+                    deliverables: { current: 'Hito 2', pendingReview: p.milestones?.some((m: any) => m.status === 'COMPLETED' && !m.isPaid), nextPayment: '15 Feb' },
+                    files: { count: p.files?.length || 0, lastUpload: 'Hace 2 días', time: '10:30 AM' },
+                    incidentsStats: {
+                        count: activeIncidents.length,
+                        critical: criticalIncidents.length,
+                        latest: activeIncidents.length > 0 ? activeIncidents[0].title : 'Sin incidencias activas'
+                    }
+                };
+            });
+            setProjects(mappedProjects);
         } catch (error) {
             console.error("Error fetching projects", error);
+        } finally {
             setLoading(false);
         }
     };

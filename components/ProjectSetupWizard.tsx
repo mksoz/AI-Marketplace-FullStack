@@ -18,9 +18,10 @@ interface ProjectSetupWizardProps {
     initialData?: {
         budget?: number;
     };
+    inline?: boolean; // NEW: render without modal wrapper
 }
 
-const ProjectSetupWizard: React.FC<ProjectSetupWizardProps> = ({ isOpen, onClose, projectId, onSuccess, initialData }) => {
+const ProjectSetupWizard: React.FC<ProjectSetupWizardProps> = ({ isOpen, onClose, projectId, onSuccess, initialData, inline = false }) => {
     const [step, setStep] = useState(1);
     const [loading, setLoading] = useState(false);
 
@@ -213,55 +214,64 @@ const ProjectSetupWizard: React.FC<ProjectSetupWizardProps> = ({ isOpen, onClose
         </div>
     );
 
-    return (
-        <Modal isOpen={isOpen} onClose={onClose} title="Configuración Inicial del Proyecto" size="2xl">
-            <div className="p-1">
-                {/* Stepper */}
-                <div className="flex justify-between items-center mb-8 px-4">
-                    {[1, 2, 3].map((s) => (
-                        <div key={s} className="flex flex-col items-center gap-2 relative z-10">
-                            <div className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold transition-colors ${step >= s ? 'bg-primary text-white shadow-lg shadow-primary/30' : 'bg-gray-100 text-gray-400'
-                                }`}>
-                                {s}
-                            </div>
-                            <span className={`text-[10px] font-bold uppercase tracking-wider ${step >= s ? 'text-primary' : 'text-gray-300'}`}>
-                                {s === 1 ? 'Fechas' : s === 2 ? 'Hitos' : 'GitHub'}
-                            </span>
+    // Wizard Content
+    const wizardContent = (
+        <div className="p-1">
+            {/* Stepper */}
+            <div className="flex justify-between items-center mb-8 px-4">
+                {[1, 2, 3].map((s) => (
+                    <div key={s} className="flex flex-col items-center gap-2 relative z-10">
+                        <div className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold transition-colors ${step >= s ? 'bg-primary text-white shadow-lg shadow-primary/30' : 'bg-gray-100 text-gray-400'
+                            }`}>
+                            {s}
                         </div>
-                    ))}
-                    {/* Line */}
-                    <div className="absolute top-[88px] left-10 right-10 h-0.5 bg-gray-100 -z-0">
-                        <div
-                            className="h-full bg-primary transition-all duration-300"
-                            style={{ width: `${((step - 1) / 2) * 100}%` }}
-                        />
+                        <span className={`text-[10px] font-bold uppercase tracking-wider ${step >= s ? 'text-primary' : 'text-gray-300'}`}>
+                            {s === 1 ? 'Fechas' : s === 2 ? 'Hitos' : 'GitHub'}
+                        </span>
                     </div>
-                </div>
-
-                <div className="min-h-[300px]">
-                    {step === 1 && renderStep1()}
-                    {step === 2 && renderStep2()}
-                    {step === 3 && renderStep3()}
-                </div>
-
-                {/* Footer Buttons */}
-                <div className="flex justify-between items-center mt-8 pt-6 border-t border-gray-100">
-                    <Button
-                        variant="ghost"
-                        onClick={step === 1 ? onClose : () => setStep(step - 1)}
-                    >
-                        {step === 1 ? 'Cancelar' : 'Atrás'}
-                    </Button>
-
-                    <Button
-                        onClick={step === 3 ? handleSubmit : () => setStep(step + 1)}
-                        loading={loading}
-                        disabled={step === 1 && (!startDate || !endDate)}
-                    >
-                        {step === 3 ? 'Finalizar Configuración' : 'Siguiente'}
-                    </Button>
+                ))}
+                {/* Line */}
+                <div className="absolute top-[88px] left-10 right-10 h-0.5 bg-gray-100 -z-0">
+                    <div
+                        className="h-full bg-primary transition-all duration-300"
+                        style={{ width: `${((step - 1) / 2) * 100}%` }}
+                    />
                 </div>
             </div>
+
+            <div className="min-h-[300px]">
+                {step === 1 && renderStep1()}
+                {step === 2 && renderStep2()}
+                {step === 3 && renderStep3()}
+            </div>
+
+            {/* Footer Buttons */}
+            <div className="flex justify-between items-center mt-8 pt-6 border-t border-gray-100">
+                <Button
+                    variant="ghost"
+                    onClick={step === 1 ? (inline ? () => { } : onClose) : () => setStep(step - 1)}
+                >
+                    {step === 1 ? (inline ? '' : 'Cancelar') : 'Atrás'}
+                </Button>
+
+                <Button
+                    onClick={step === 3 ? handleSubmit : () => setStep(step + 1)}
+                    disabled={(step === 1 && (!startDate || !endDate)) || loading}
+                >
+                    {loading ? 'Configurando...' : (step === 3 ? 'Finalizar Configuración' : 'Siguiente')}
+                </Button>
+            </div>
+        </div>
+    );
+
+    // Return Modal wrapper or inline content
+    if (inline) {
+        return wizardContent;
+    }
+
+    return (
+        <Modal isOpen={isOpen} onClose={onClose} title="Configuración Inicial del Proyecto" size="2xl">
+            {wizardContent}
         </Modal>
     );
 };

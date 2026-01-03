@@ -39,6 +39,9 @@ const ClientProposals: React.FC = () => {
             else if (p.status === 'ACCEPTED') {
                color = 'bg-green-100 text-green-700'; uiStatus = 'Aceptada'; statusId = 'ACCEPTED';
             }
+            else if (p.status === 'IN_PROGRESS') {
+               color = 'bg-blue-100 text-blue-700'; uiStatus = 'En Curso'; statusId = 'IN_PROGRESS';
+            }
             else if (p.status === 'DECLINED' || p.status === 'CANCELLED') {
                color = 'bg-red-100 text-red-700'; uiStatus = 'Rechazada'; statusId = 'DECLINED';
             }

@@ -12,12 +12,13 @@ interface VendorProposalDetailsModalProps {
     onClose: () => void;
     lead: any;
     onStatusUpdate: () => void;
+    initialTab?: 'proposal' | 'contract' | 'configuracion'; // NEW: optional initial tab
 }
 
-const VendorProposalDetailsModal: React.FC<VendorProposalDetailsModalProps> = ({ isOpen, onClose, lead, onStatusUpdate }) => {
+const VendorProposalDetailsModal: React.FC<VendorProposalDetailsModalProps> = ({ isOpen, onClose, lead, onStatusUpdate, initialTab = 'proposal' }) => {
     const navigate = useNavigate();
     const [loading, setLoading] = useState(false);
-    const [activeTab, setActiveTab] = useState<'proposal' | 'contract'>('proposal');
+    const [activeTab, setActiveTab] = useState<'proposal' | 'contract' | 'configuracion'>('proposal');
     const [rejecting, setRejecting] = useState(false);
     const [rejectionReason, setRejectionReason] = useState('');
     const [showAcceptModal, setShowAcceptModal] = useState(false);
@@ -41,16 +42,17 @@ const VendorProposalDetailsModal: React.FC<VendorProposalDetailsModalProps> = ({
 
     useEffect(() => {
         if (isOpen && lead) {
-            setActiveTab('proposal');
+            setActiveTab(initialTab); // Use initialTab prop
         }
-    }, [isOpen, lead]);
+    }, [isOpen, lead, initialTab]);
 
     if (!lead) return null;
 
     const currentStatus = lead.rawStatus;
 
-    // Tabs availability based on status
-    const showContract = ['IN_NEGOTIATION', 'ACCEPTED', 'CONTACTED'].includes(currentStatus);
+    // Tabs availability based on status or active navigation
+    const showContract = ['IN_NEGOTIATION', 'ACCEPTED', 'CONTACTED'].includes(currentStatus) || activeTab === 'contract';
+    const showConfiguracion = currentStatus === 'ACCEPTED' || activeTab === 'configuracion';
 
     const handleStatusChange = async (newStatus: string, reason?: string, message?: string) => {
         setLoading(true);
@@ -61,8 +63,12 @@ const VendorProposalDetailsModal: React.FC<VendorProposalDetailsModalProps> = ({
                 initialMessage: message
             });
             onStatusUpdate();
-            // Automatically switch tabs if progressing
-            if (newStatus === 'IN_NEGOTIATION') setActiveTab('contract');
+            // Automatically close modal and navigate to proposals list if progressing
+            if (newStatus === 'IN_NEGOTIATION') {
+                setShowAcceptModal(false);
+                onClose();
+                navigate('/vendor/proposals');
+            }
 
             if (newStatus === 'DECLINED' || newStatus === 'CONTACTED') {
                 if (newStatus === 'CONTACTED') {
@@ -98,6 +104,15 @@ const VendorProposalDetailsModal: React.FC<VendorProposalDetailsModalProps> = ({
                     className={`px-4 py-2 text-sm font-bold border-b-2 transition-colors flex items-center gap-2 ${activeTab === 'contract' ? 'border-primary text-primary' : 'border-transparent text-gray-500 hover:text-gray-700'}`}
                 >
                     Contrato
+                </button>
+            )}
+            {showConfiguracion && (
+                <button
+                    onClick={() => setActiveTab('configuracion')}
+                    className={`px-4 py-2 text-sm font-bold border-b-2 transition-colors flex items-center gap-2 ${activeTab === 'configuracion' ? 'border-primary text-primary' : 'border-transparent text-gray-500 hover:text-gray-700'}`}
+                >
+                    <span className="material-symbols-outlined text-sm">settings</span>
+                    Configuración
                 </button>
             )}
         </div>
@@ -171,59 +186,73 @@ const VendorProposalDetailsModal: React.FC<VendorProposalDetailsModalProps> = ({
                                 onStatusChange={(s) => { if (s === 'ACCEPTED') onStatusUpdate(); }}
                             />
                         )}
-                    </div>
 
-                    {/* Actions Footer */}
-                    <div className="pt-6 border-t border-gray-100 flex flex-wrap gap-3 justify-end items-center">
-                        {rejecting ? (
-                            <div className="flex flex-1 gap-2 items-center animate-in slide-in-from-right">
-                                <input
-                                    value={rejectionReason}
-                                    onChange={e => setRejectionReason(e.target.value)}
-                                    placeholder="Motivo del rechazo..."
-                                    className="flex-1 border border-red-200 bg-red-50 text-red-900 placeholder:text-red-300 rounded-lg px-3 py-2 text-sm outline-none focus:ring-1 focus:ring-red-500"
-                                    autoFocus
-                                />
-                                <Button variant="ghost" onClick={() => setRejecting(false)}>Cancelar</Button>
-                                <Button onClick={confirmRejection} className="bg-red-600 hover:bg-red-700 text-white">Confirmar Rechazo</Button>
-                            </div>
-                        ) : (
-                            <>
-                                {currentStatus !== 'DECLINED' && currentStatus !== 'ACCEPTED' && (
-                                    <Button variant="ghost" className="text-red-500 hover:bg-red-50 hover:text-red-600" onClick={() => setRejecting(true)}>
-                                        Rechazar Propuesta
-                                    </Button>
-                                )}
-
-                                {currentStatus === 'PROPOSED' && (
-                                    <Button onClick={() => setShowAcceptModal(true)}>
-                                        Aceptar Propuesta
-                                    </Button>
-                                )}
-
-                                {currentStatus === 'CONTACTED' && (
-                                    <div className="flex items-center gap-3">
-                                        <span className="text-xs text-green-600 font-medium italic">Propuesta aceptada. Continúa en la pestaña de Contrato.</span>
-                                    </div>
-                                )}
-
-                                {currentStatus === 'IN_NEGOTIATION' && (
-                                    <div className="flex items-center gap-3">
-                                        <span className="text-xs text-green-600 font-medium italic">En negociación. Revisa los términos en la pestaña de Contrato.</span>
-                                    </div>
-                                )}
-
-                                {currentStatus === 'ACCEPTED' && (
-                                    <div className="flex items-center gap-3">
-                                        <span className="text-xs text-blue-600 font-medium italic">Proyecto aceptado (Contrato firmado).</span>
-                                        <Button onClick={() => setIsSetupWizardOpen(true)} className="bg-primary hover:bg-primary/90 text-sm">
-                                            Configurar Proyecto
-                                        </Button>
-                                    </div>
-                                )}
-                            </>
+                        {activeTab === 'configuracion' && (
+                            <ProjectSetupWizard
+                                isOpen={false}
+                                onClose={() => { }}
+                                projectId={lead.id}
+                                onSuccess={() => {
+                                    onStatusUpdate(); // Refresh project list
+                                    onClose(); // Close modal
+                                    navigate(`/vendor/projects/${lead.id}`); // Navigate to THIS project
+                                }}
+                                initialData={{ budget: lead.budgetVal }}
+                                inline={true}
+                            />
                         )}
                     </div>
+
+                    {/* Actions Footer - Proposal Tab Only */}
+                    {activeTab === 'proposal' && (
+                        <div className="pt-6 border-t border-gray-100 flex flex-wrap gap-3 justify-end items-center">
+                            {rejecting ? (
+                                <div className="flex flex-1 gap-2 items-center animate-in slide-in-from-right">
+                                    <input
+                                        value={rejectionReason}
+                                        onChange={e => setRejectionReason(e.target.value)}
+                                        placeholder="Motivo del rechazo..."
+                                        className="flex-1 border border-red-200 bg-red-50 text-red-900 placeholder:text-red-300 rounded-lg px-3 py-2 text-sm outline-none focus:ring-1 focus:ring-red-500"
+                                        autoFocus
+                                    />
+                                    <Button variant="ghost" onClick={() => setRejecting(false)}>Cancelar</Button>
+                                    <Button onClick={confirmRejection} className="bg-red-600 hover:bg-red-700 text-white">Confirmar Rechazo</Button>
+                                </div>
+                            ) : (
+                                <>
+                                    {currentStatus !== 'DECLINED' && currentStatus !== 'ACCEPTED' && (
+                                        <Button variant="ghost" className="text-red-500 hover:bg-red-50 hover:text-red-600" onClick={() => setRejecting(true)}>
+                                            Rechazar Propuesta
+                                        </Button>
+                                    )}
+
+                                    {currentStatus === 'PROPOSED' && (
+                                        <Button onClick={() => setShowAcceptModal(true)}>
+                                            Aceptar Propuesta
+                                        </Button>
+                                    )}
+
+                                    {currentStatus === 'CONTACTED' && (
+                                        <div className="flex items-center gap-3">
+                                            <span className="text-xs text-green-600 font-medium italic">Propuesta aceptada. Continúa en la pestaña de Contrato.</span>
+                                        </div>
+                                    )}
+
+                                    {currentStatus === 'IN_NEGOTIATION' && (
+                                        <div className="flex items-center gap-3">
+                                            <span className="text-xs text-green-600 font-medium italic">En negociación. Revisa los términos en la pestaña de Contrato.</span>
+                                        </div>
+                                    )}
+
+                                    {currentStatus === 'ACCEPTED' && (
+                                        <div className="flex items-center gap-3">
+                                            <span className="text-xs text-blue-600 font-medium italic">Proyecto aceptado (Contrato firmado). Configura el proyecto en la pestaña "Configuración".</span>
+                                        </div>
+                                    )}
+                                </>
+                            )}
+                        </div>
+                    )}
                 </div>
                 {/* Project Setup Wizard */}
                 <ProjectSetupWizard
@@ -273,9 +302,9 @@ const VendorProposalDetailsModal: React.FC<VendorProposalDetailsModalProps> = ({
                         <Button
                             className="flex-[2]"
                             onClick={() => handleStatusChange('IN_NEGOTIATION', undefined, initialMessage)}
-                            loading={loading}
+                            disabled={loading}
                         >
-                            Enviar y Aceptar
+                            {loading ? 'Enviando...' : 'Enviar y Aceptar'}
                         </Button>
                     </div>
                 </div>

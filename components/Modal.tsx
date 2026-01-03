@@ -11,6 +11,11 @@ interface ModalProps {
 
 const Modal: React.FC<ModalProps> = ({ isOpen, onClose, title, children, size = 'md' }) => {
   const modalRef = useRef<HTMLDivElement>(null);
+  const [mounted, setMounted] = React.useState(false);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
 
   useEffect(() => {
     const handleEscape = (e: KeyboardEvent) => {
@@ -27,7 +32,7 @@ const Modal: React.FC<ModalProps> = ({ isOpen, onClose, title, children, size = 
     };
   }, [isOpen, onClose]);
 
-  if (!isOpen) return null;
+  if (!isOpen || !mounted) return null;
 
   const sizeClasses = {
     sm: 'max-w-sm',
@@ -42,12 +47,16 @@ const Modal: React.FC<ModalProps> = ({ isOpen, onClose, title, children, size = 
     '7xl': 'max-w-7xl',
   };
 
-  return createPortal(
-    <div className="fixed inset-0 z-50 overflow-y-auto bg-black/50 backdrop-blur-sm transition-opacity" aria-labelledby="modal-title" role="dialog" aria-modal="true">
-      <div className="flex min-h-full items-end justify-center p-4 text-center sm:items-start sm:p-4">
+  return (
+    <div className="fixed inset-0 z-[9999] overflow-y-auto" aria-labelledby="modal-title" role="dialog" aria-modal="true">
+      {/* Backdrop */}
+      <div className="fixed inset-0 bg-black/50 backdrop-blur-sm transition-opacity" onClick={onClose} />
+
+      <div className="flex min-h-full items-center justify-center p-4 text-center sm:p-0">
         <div
           ref={modalRef}
-          className={`relative transform overflow-hidden rounded-2xl bg-white text-left shadow-xl transition-all sm:my-8 w-full ${sizeClasses[size]}`}
+          className={`relative transform overflow-hidden rounded-2xl bg-white text-left shadow-2xl transition-all sm:my-8 w-full ${sizeClasses[size]}`}
+          onClick={e => e.stopPropagation()}
         >
           {/* Header - Sticky */}
           <div className="flex items-center justify-between p-4 border-b border-gray-100 bg-white sticky top-0 z-20">
@@ -66,8 +75,7 @@ const Modal: React.FC<ModalProps> = ({ isOpen, onClose, title, children, size = 
           </div>
         </div>
       </div>
-    </div>,
-    document.body
+    </div>
   );
 };
 

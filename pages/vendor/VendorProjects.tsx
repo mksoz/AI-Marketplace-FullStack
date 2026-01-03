@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import VendorLayout from '../../components/VendorLayout';
+import VendorProposalDetailsModal from '../../components/VendorProposalDetailsModal';
 import api from '../../services/api';
 
 // import { mockProjects } from '../../services/mockData';
@@ -39,6 +40,10 @@ const VendorProjects: React.FC = () => {
 
     // View State
     const [viewMode, setViewMode] = useState<'board' | 'list'>('board');
+
+    // Proposal Modal State
+    const [selectedProposal, setSelectedProposal] = useState<any>(null);
+    const [showProposalModal, setShowProposalModal] = useState(false);
 
     // Autocomplete State
     const [showSuggestions, setShowSuggestions] = useState(false);
@@ -135,6 +140,30 @@ const VendorProjects: React.FC = () => {
         });
     };
 
+    // Handle click on project card
+    const handleProjectClick = (project: any) => {
+        if (project.status === 'ACCEPTED') {
+            // Transform project data to match lead structure
+            const leadData = {
+                id: project.id,
+                project: project.title || project.name,
+                client: project.client?.companyName || 'Cliente',
+                budget: `$${project.budget?.toLocaleString() || '0'}`,
+                budgetVal: project.budget || 0,
+                status: project.status, // For initialTab prop
+                rawStatus: project.status,
+                templateData: project.templateData,
+                description: project.description
+            };
+
+            setSelectedProposal(leadData);
+            setShowProposalModal(true);
+        } else {
+            // Navigate to project details
+            navigate(`/vendor/projects/${project.id}`);
+        }
+    };
+
     return (
         <VendorLayout>
             <div className="space-y-6 h-full flex flex-col">
@@ -191,10 +220,7 @@ const VendorProjects: React.FC = () => {
                                         {filteredProjects.slice(0, 5).map(p => (
                                             <div
                                                 key={p.id}
-                                                onClick={() => {
-                                                    navigate(`/vendor/projects/${p.id}`);
-                                                    setShowSuggestions(false);
-                                                }}
+                                                onClick={() => handleProjectClick(p)}
                                                 className="px-4 py-3 hover:bg-gray-50 cursor-pointer flex justify-between items-center group border-b border-gray-50 last:border-0"
                                             >
                                                 <div>
@@ -285,7 +311,7 @@ const VendorProjects: React.FC = () => {
                                             return (
                                                 <tr
                                                     key={project.id}
-                                                    onClick={() => navigate(`/vendor/projects/${project.id}`)}
+                                                    onClick={() => handleProjectClick(project)}
                                                     className="hover:bg-gray-50/80 transition-colors cursor-pointer group"
                                                 >
                                                     <td className="px-6 py-4">
@@ -371,7 +397,7 @@ const VendorProjects: React.FC = () => {
                                                     return (
                                                         <div
                                                             key={project.id}
-                                                            onClick={() => navigate(`/vendor/projects/${project.id}`)}
+                                                            onClick={() => handleProjectClick(project)}
                                                             className="bg-white p-5 rounded-xl border border-gray-200 shadow-sm hover:shadow-lg cursor-pointer hover:border-primary/50 transition-all group relative overflow-hidden"
                                                         >
                                                             <div className="absolute top-0 right-0 w-16 h-16 bg-gradient-to-bl from-gray-100 to-transparent opacity-50 rounded-bl-full pointer-events-none group-hover:from-primary/10 transition-all"></div>
@@ -420,6 +446,24 @@ const VendorProjects: React.FC = () => {
                     )}
                 </div>
             </div>
+
+            {/* Proposal Configuration Modal */}
+            {selectedProposal && (
+                <VendorProposalDetailsModal
+                    isOpen={showProposalModal}
+                    onClose={() => {
+                        setShowProposalModal(false);
+                        setSelectedProposal(null);
+                    }}
+                    lead={selectedProposal}
+                    onStatusUpdate={() => {
+                        fetchProjects();
+                        setShowProposalModal(false);
+                        setSelectedProposal(null);
+                    }}
+                    initialTab={selectedProposal.status === 'ACCEPTED' ? 'configuracion' : 'proposal'}
+                />
+            )}
         </VendorLayout>
     );
 };

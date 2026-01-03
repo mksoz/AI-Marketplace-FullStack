@@ -31,13 +31,22 @@ const VendorProjectDetails: React.FC = () => {
     const roadmapEditorRef = React.useRef<any>(null);
 
     useEffect(() => {
-        if (id) {
-            setTimeout(() => {
-                const mock = getMockProject(id);
-                setProject(mock);
+        const fetchProject = async () => {
+            if (!id) return;
+
+            setLoading(true);
+            try {
+                const res = await api.get(`/projects/${id}/tracking`);
+                setProject(res.data);
+            } catch (error) {
+                console.error('Error fetching project:', error);
+                setProject(null);
+            } finally {
                 setLoading(false);
-            }, 500);
-        }
+            }
+        };
+
+        fetchProject();
     }, [id]);
 
     const handleTabChange = (tab: string) => {

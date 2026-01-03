@@ -182,20 +182,29 @@ export const signContract = async (req: Request, res: Response) => {
             where: { projectId },
             include: {
                 project: { include: { client: true, vendor: true } },
-                versions: { where: { status: 'ACCEPTED' }, orderBy: { versionNumber: 'desc' }, take: 1 }
+                // Get the latest version (PROPOSED or ACCEPTED)
+                versions: { orderBy: { versionNumber: 'desc' }, take: 1 }
             }
         });
 
         if (!contract) return res.status(404).json({ message: "Contract not found" });
 
-        // We need an ACCEPTED version to sign
-        const activeVersion = contract.versions[0];
+        // Get the latest version (for signing)
+        const latestVersion = contract.versions[0];
 
-        if (!activeVersion && !contract.activeVersionId) {
-            return res.status(400).json({ message: "No accepted contract version to sign" });
+        if (!latestVersion) {
+            return res.status(400).json({ message: "No contract version available to sign" });
         }
 
-        const versionIdToSign = activeVersion ? activeVersion.id : contract.activeVersionId!;
+        // Auto-transition version to ACCEPTED if it was PROPOSED or DRAFT
+        if (latestVersion.status === 'PROPOSED' || latestVersion.status === 'DRAFT') {
+            await prisma.contractVersion.update({
+                where: { id: latestVersion.id },
+                data: { status: 'ACCEPTED' }
+            });
+        }
+
+        const versionIdToSign = latestVersion.id;
 
         const updateData: any = {};
         const versionUpdateData: any = {};
@@ -228,7 +237,7 @@ export const signContract = async (req: Request, res: Response) => {
         }
 
         // 1. Update the Contract Model (Main Record)
-        const updatedContract = await prisma.contract.update({
+        await prisma.contract.update({
             where: { id: contract.id },
             data: updateData
         });
@@ -239,8 +248,18 @@ export const signContract = async (req: Request, res: Response) => {
             data: versionUpdateData
         });
 
-        // Send Single Signature Notification
-        if (notificationTargetUserId && !updatedContract.status.includes('SIGNED')) { // Avoid double notify if both happen same millisecond
+        // 3. Re-fetch contract to get complete state after update
+        const updatedContract = await prisma.contract.findUnique({
+            where: { id: contract.id },
+            include: { project: { include: { client: true, vendor: true } } }
+        });
+
+        if (!updatedContract) {
+            return res.status(500).json({ message: "Error fetching updated contract" });
+        }
+
+        // Send Single Signature Notification (if not fully signed yet)
+        if (notificationTargetUserId && updatedContract.status !== 'SIGNED') {
             await prisma.notification.create({
                 data: {
                     userId: notificationTargetUserId,
@@ -253,6 +272,8 @@ export const signContract = async (req: Request, res: Response) => {
 
         // Check if both signed -> Move Project to ACCEPTED
         if (updatedContract.clientSigned && updatedContract.vendorSigned) {
+            console.log('[CONTRACT] Both parties have signed! Transitioning to ACCEPTED');
+
             await prisma.contract.update({
                 where: { id: contract.id },
                 data: { status: 'SIGNED' }
@@ -265,7 +286,6 @@ export const signContract = async (req: Request, res: Response) => {
             });
 
             // Notify BOTH of Success
-            // Notify Client
             await prisma.notification.create({
                 data: {
                     userId: contract.project.client.userId,
@@ -274,7 +294,7 @@ export const signContract = async (req: Request, res: Response) => {
                     type: 'SUCCESS'
                 }
             });
-            // Notify Vendor
+
             if (contract.project.vendor?.userId) {
                 await prisma.notification.create({
                     data: {
@@ -285,6 +305,9 @@ export const signContract = async (req: Request, res: Response) => {
                     }
                 });
             }
+
+            // Return with SIGNED status indicator
+            return res.json({ ...updatedContract, status: 'SIGNED' });
         }
 
         res.json(updatedContract);

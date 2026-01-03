@@ -39,8 +39,8 @@ const ClientProposalDetailsModal: React.FC<ClientProposalDetailsModalProps> = ({
 
     const currentStatus = proposal.status;
 
-    // Tabs logic
-    const showContract = ['IN_NEGOTIATION', 'ACCEPTED', 'CONTACTED'].includes(currentStatus);
+    // Tabs logic - Show contract for all statuses that have contract (negotiation onwards)
+    const showContract = ['IN_NEGOTIATION', 'ACCEPTED', 'CONTACTED', 'IN_PROGRESS', 'COMPLETED'].includes(currentStatus);
 
     // Auto-switch tabs if needed (e.g. if opened in negotiation, maybe distinct visual cue? but let's default to details)
 
@@ -63,6 +63,15 @@ const ClientProposalDetailsModal: React.FC<ClientProposalDetailsModalProps> = ({
         </div>
     );
 
+    // Safe Vendor Name
+    const getVendorName = () => {
+        if (!proposal.vendor) return "Proveedor Asignado";
+        if (typeof proposal.vendor === 'string') return proposal.vendor;
+        return proposal.vendor.companyName || "Proveedor Asignado";
+    };
+
+    const vendorName = getVendorName();
+
     return (
         <Modal
             isOpen={isOpen}
@@ -74,7 +83,7 @@ const ClientProposalDetailsModal: React.FC<ClientProposalDetailsModalProps> = ({
                 {/* Header Info */}
                 <div className="flex justify-between items-start bg-gray-50 p-4 rounded-xl mb-6 flex-none">
                     <div>
-                        <h3 className="font-bold text-lg text-gray-900">{proposal.vendor?.companyName || "Proveedor Asignado"}</h3>
+                        <h3 className="font-bold text-lg text-gray-900">{vendorName}</h3>
                         <p className="text-gray-500 text-sm">Vendor</p>
                     </div>
                     <div className="text-right">
@@ -88,11 +97,11 @@ const ClientProposalDetailsModal: React.FC<ClientProposalDetailsModalProps> = ({
                 <div className="mb-6">
                     {activeTab === 'details' && (
                         <div className="space-y-6">
-                            {proposal.templateData ? (
+                            {(proposal.templateData) ? (
                                 <TemplateRenderer
                                     templateName={proposal.templateData.templateName || "Solicitud de Proyecto"}
                                     templateDesc={proposal.templateData.templateDesc || ""}
-                                    fields={proposal.templateData.structure || []}
+                                    fields={Array.isArray(proposal.templateData.structure) ? proposal.templateData.structure : []}
                                     answers={proposal.templateData.answers || {}}
                                 />
                             ) : (
@@ -110,7 +119,7 @@ const ClientProposalDetailsModal: React.FC<ClientProposalDetailsModalProps> = ({
                             currentUserId={currentUserId}
                             currentUserRole="CLIENT"
                             currentUserName={currentUserName}
-                            otherPartyName={proposal.vendor?.companyName || "Proveedor"}
+                            otherPartyName={vendorName}
                         />
                     )}
                 </div>

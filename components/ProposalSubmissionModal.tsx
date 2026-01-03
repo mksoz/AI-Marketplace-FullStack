@@ -232,10 +232,10 @@ const ProposalSubmissionModal: React.FC<ProposalSubmissionModalProps> = ({ isOpe
                             <Button
                                 variant="primary"
                                 onClick={handleSubmit}
-                                isLoading={loading}
+                                disabled={loading}
                                 className="flex-1 justify-center"
                             >
-                                Enviar Propuesta
+                                {loading ? 'Enviando...' : 'Enviar Propuesta'}
                             </Button>
                         </div>
                     </div>

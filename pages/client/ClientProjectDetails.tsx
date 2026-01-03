@@ -7,8 +7,6 @@ import IncidentManager from '../../components/IncidentManager';
 import FinancialsManager from '../../components/FinancialsManager';
 import ClientProjectMilestones from './ClientProjectMilestones';
 
-import { getMockProject } from '../../services/mockData';
-
 const ClientProjectDetails: React.FC = () => {
     const { id } = useParams();
     const navigate = useNavigate();
@@ -30,14 +28,22 @@ const ClientProjectDetails: React.FC = () => {
     const [expandedComments, setExpandedComments] = useState<Record<string, boolean>>({});
 
     useEffect(() => {
-        if (id) {
-            // Using mock data service
-            setTimeout(() => {
-                const mock = getMockProject(id);
-                setProject(mock);
+        const fetchProject = async () => {
+            if (!id) return;
+
+            setLoading(true);
+            try {
+                const res = await api.get(`/projects/${id}/tracking`);
+                setProject(res.data);
+            } catch (error) {
+                console.error('Error fetching project:', error);
+                setProject(null);
+            } finally {
                 setLoading(false);
-            }, 500);
-        }
+            }
+        };
+
+        fetchProject();
     }, [id]);
 
     const handleTabChange = (tab: string) => {
