@@ -33,6 +33,7 @@ model User {
   email         String    @unique
   password      String
   role          UserRole  @default(CLIENT)
+  simulationMode Boolean  @default(true)  // Simulation mode for testing payments
   createdAt     DateTime  @default(now())
   updatedAt     DateTime  @updatedAt
 
@@ -44,6 +45,7 @@ model User {
   notifications Notification[]
   
   reportedIncidents Incident[] @relation("Reporter")
+  paymentMethods    PaymentMethod[]
 }
 
 model ClientProfile {
@@ -56,6 +58,7 @@ model ClientProfile {
   
   projects      Project[]
   savedVendors  SavedVendor[]
+  account       ClientAccount?
 }
 
 enum MilestoneStatus {
@@ -81,6 +84,7 @@ model VendorProfile {
   // Projects where this vendor is directly assigned/requested
   projects        Project[] @relation("VendorProjects")
   savedByClients  SavedVendor[]
+  account         VendorAccount?
 }
 
 model RequirementTemplate {
@@ -176,6 +180,13 @@ model Milestone {
   dueDate   DateTime?
   order     Int             @default(0)
   isPaid    Boolean         @default(false)
+  
+  // For milestones without payment
+  completionNote  String?
+  completedAt     DateTime?
+  
+  // Payment request relation
+  paymentRequest  PaymentRequest?
 }
 
 model Proposal {
@@ -339,3 +350,131 @@ model SavedVendor {
   @@unique([clientId, vendorId])
 }
 
+
+// ========================================
+// FINANCIAL MANAGEMENT SYSTEM
+// ========================================
+
+enum PaymentRequestStatus {
+  PENDING
+  APPROVED
+  REJECTED
+  COMPLETED
+}
+
+model PaymentRequest {
+  id            String                @id @default(uuid())
+  milestoneId   String                @unique
+  milestone     Milestone             @relation(fields: [milestoneId], references: [id])
+  
+  vendorNote    String?
+  amount        Float
+  status        PaymentRequestStatus  @default(PENDING)
+  
+  requestedAt   DateTime              @default(now())
+  reviewedAt    DateTime?
+  rejectionReason String?
+  
+  // Link to transaction when approved
+  transactionId   String?           @unique
+  transaction     Transaction?      @relation(fields: [transactionId], references: [id])
+}
+
+model ClientAccount {
+  id            String      @id @default(uuid())
+  clientId      String      @unique
+  client        ClientProfile @relation(fields: [clientId], references: [id])
+  
+  balance       Float       @default(0)
+  currency      String      @default("USD")
+  
+  createdAt     DateTime    @default(now())
+  updatedAt     DateTime    @updatedAt
+  
+  transactionsFrom  Transaction[] @relation("FromTransactions")
+}
+
+model VendorAccount {
+  id            String      @id @default(uuid())
+  vendorId      String      @unique
+  vendor        VendorProfile @relation(fields: [vendorId], references: [id])
+  
+  balance       Float       @default(0)
+  currency      String      @default("USD")
+  
+  createdAt     DateTime    @default(now())
+  updatedAt     DateTime    @updatedAt
+  
+  transactionsTo    Transaction[] @relation("ToTransactions")
+}
+
+enum TransactionType {
+  DEPOSIT
+  WITHDRAWAL
+  PAYMENT
+  REFUND
+  FEE
+}
+
+enum TransactionStatus {
+  PENDING
+  PROCESSING
+  COMPLETED
+  FAILED
+  CANCELLED
+}
+
+model Transaction {
+  id            String            @id @default(uuid())
+  
+  // Amount and type
+  amount        Float
+  type          TransactionType
+  status        TransactionStatus @default(PENDING)
+  description   String?
+  
+  // Related accounts
+  fromAccountId String?
+  fromAccount   ClientAccount?    @relation(fields: [fromAccountId], references: [id], name: "FromTransactions")
+  
+  toAccountId   String?
+  toAccount     VendorAccount?    @relation(fields: [toAccountId], references: [id], name: "ToTransactions")
+  
+  //Related payment request (if applicable)
+  paymentRequest  PaymentRequest?
+  
+  // Related project/milestone
+  projectId     String?
+  milestoneId   String?
+  
+  // Metadata
+  metadata      Json?
+  
+  createdAt     DateTime          @default(now())
+  completedAt   DateTime?
+}
+
+enum PaymentMethodType {
+  BANK_ACCOUNT
+  CREDIT_CARD
+  PAYPAL
+  APPLE_PAY
+  GOOGLE_PAY
+}
+
+model PaymentMethod {
+  id            String            @id @default(uuid())
+  userId        String
+  user          User              @relation(fields: [userId], references: [id])
+  
+  type          PaymentMethodType
+  isDefault     Boolean           @default(false)
+  
+  // Encrypted/Tokenized data
+  last4         String?           // Last 4 digits for display
+  brand         String?           // Visa, Mastercard, etc.
+  metadata      Json?             // Store encrypted tokens, account info
+  
+  createdAt     DateTime          @default(now())
+  updatedAt     DateTime          @updatedAt
+}

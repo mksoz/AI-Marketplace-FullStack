@@ -489,10 +489,19 @@ const VendorProjectDetails: React.FC = () => {
                             <FinancialsManager
                                 milestones={project.milestones || []}
                                 userRole="vendor"
-                                onRequestRelease={(mId, note) => {
-                                    console.log(`Solicitando liberación para ${mId}: ${note}`);
-                                    alert('Solicitud enviada al cliente');
-                                    // Update mock state if needed
+                                onRequestRelease={async (mId, note) => {
+                                    try {
+                                        await api.post(`/milestones/${mId}/request-payment`, {
+                                            vendorNote: note
+                                        });
+                                        alert('Solicitud de pago enviada correctamente');
+                                        // Reload project data
+                                        const response = await api.get(`/projects/${projectId}`);
+                                        setProject(response.data);
+                                    } catch (error: any) {
+                                        console.error('Error requesting payment:', error);
+                                        alert(error.response?.data?.message || 'Error al solicitar pago');
+                                    }
                                 }}
                             />
                         </div>

@@ -8,6 +8,8 @@ import chatRoutes from './chat.routes';
 import contractRoutes from './contract.routes';
 
 import notificationRoutes from './notification.routes';
+import milestoneRoutes from './milestone.routes';
+import accountRoutes from './account.routes';
 
 const router = Router();
 
@@ -18,5 +20,7 @@ router.use('/templates', templateRoutes);
 router.use('/chats', chatRoutes);
 router.use('/contracts', contractRoutes);
 router.use('/notifications', notificationRoutes);
+router.use('/milestones', milestoneRoutes);
+router.use('/accounts', accountRoutes);
 
 export default router;

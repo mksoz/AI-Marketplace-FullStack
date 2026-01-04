@@ -10,6 +10,7 @@ import HowItWorks from './pages/HowItWorks';
 import Pricing from './pages/Pricing';
 import ScrollToTop from './components/ScrollToTop';
 import VendorLayout from './components/VendorLayout';
+import { ToastProvider } from './contexts/ToastContext';
 
 // Client Views
 import ClientDashboard from './pages/client/ClientDashboard';
@@ -68,63 +69,65 @@ const ProtectedRoute = ({ children }: { children?: React.ReactNode }) => {
 
 const App: React.FC = () => {
   return (
-    <Router>
-      <ScrollToTopHelper />
-      <Routes>
-        {/* Public Routes */}
-        <Route path="/" element={<Home />} />
-        <Route path="/how-it-works" element={<HowItWorks />} />
-        <Route path="/pricing" element={<Pricing />} />
-        <Route path="/search" element={<Search />} />
-        <Route path="/company/:id" element={<CompanyProfile />} />
-        <Route path="/proposal/:companyId" element={<Proposal />} />
-        <Route path="/support" element={<HelpCenter />} />
-        <Route path="/signup" element={<SignUp />} />
+    <ToastProvider>
+      <Router>
+        <ScrollToTopHelper />
+        <Routes>
+          {/* Public Routes */}
+          <Route path="/" element={<Home />} />
+          <Route path="/how-it-works" element={<HowItWorks />} />
+          <Route path="/pricing" element={<Pricing />} />
+          <Route path="/search" element={<Search />} />
+          <Route path="/company/:id" element={<CompanyProfile />} />
+          <Route path="/proposal/:companyId" element={<Proposal />} />
+          <Route path="/support" element={<HelpCenter />} />
+          <Route path="/signup" element={<SignUp />} />
 
-        {/* Client Protected Routes */}
-        <Route path="/client/dashboard" element={<ProtectedRoute><ClientDashboard /></ProtectedRoute>} />
-        <Route path="/client/profile" element={<ProtectedRoute><ClientProfile /></ProtectedRoute>} />
-        <Route path="/client/projects" element={<ProtectedRoute><ClientProjects /></ProtectedRoute>} />
-        <Route path="/client/projects" element={<ProtectedRoute><ClientProjects /></ProtectedRoute>} />
-        <Route path="/client/projects/:id" element={<ProtectedRoute><ClientProjectDetails /></ProtectedRoute>} />
+          {/* Client Protected Routes */}
+          <Route path="/client/dashboard" element={<ProtectedRoute><ClientDashboard /></ProtectedRoute>} />
+          <Route path="/client/profile" element={<ProtectedRoute><ClientProfile /></ProtectedRoute>} />
+          <Route path="/client/projects" element={<ProtectedRoute><ClientProjects /></ProtectedRoute>} />
+          <Route path="/client/projects" element={<ProtectedRoute><ClientProjects /></ProtectedRoute>} />
+          <Route path="/client/projects/:id" element={<ProtectedRoute><ClientProjectDetails /></ProtectedRoute>} />
 
-        <Route path="/client/proposals" element={<ProtectedRoute><ClientProposals /></ProtectedRoute>} />
-        <Route path="/client/vendors" element={<ProtectedRoute><ClientVendors /></ProtectedRoute>} />
-        <Route path="/client/calendar" element={<ProtectedRoute><ClientCalendar /></ProtectedRoute>} />
+          <Route path="/client/proposals" element={<ProtectedRoute><ClientProposals /></ProtectedRoute>} />
+          <Route path="/client/vendors" element={<ProtectedRoute><ClientVendors /></ProtectedRoute>} />
+          <Route path="/client/calendar" element={<ProtectedRoute><ClientCalendar /></ProtectedRoute>} />
 
-        <Route path="/client/funds" element={<ProtectedRoute><ClientFunds /></ProtectedRoute>} />
-        <Route path="/client/funds/deposit" element={<ProtectedRoute><ClientDeposit /></ProtectedRoute>} />
-        <Route path="/client/funds/review" element={<ProtectedRoute><ClientReviewRelease /></ProtectedRoute>} />
-        <Route path="/client/settings" element={<ProtectedRoute><ClientSettings /></ProtectedRoute>} />
-        <Route path="/client/messages" element={<ProtectedRoute><ClientMessages /></ProtectedRoute>} />
-        <Route path="/client/notifications" element={<ProtectedRoute><ClientNotifications /></ProtectedRoute>} />
+          <Route path="/client/funds" element={<ProtectedRoute><ClientFunds /></ProtectedRoute>} />
+          <Route path="/client/funds/deposit" element={<ProtectedRoute><ClientDeposit /></ProtectedRoute>} />
+          <Route path="/client/funds/review" element={<ProtectedRoute><ClientReviewRelease /></ProtectedRoute>} />
+          <Route path="/client/settings" element={<ProtectedRoute><ClientSettings /></ProtectedRoute>} />
+          <Route path="/client/messages" element={<ProtectedRoute><ClientMessages /></ProtectedRoute>} />
+          <Route path="/client/notifications" element={<ProtectedRoute><ClientNotifications /></ProtectedRoute>} />
 
-        {/* Vendor Protected Routes */}
-        <Route path="/vendor/dashboard" element={<ProtectedRoute><VendorDashboard /></ProtectedRoute>} />
-        <Route path="/vendor/projects" element={<ProtectedRoute><VendorProjects /></ProtectedRoute>} />
-        <Route path="/vendor/projects/:id" element={<ProtectedRoute><VendorProjectDetails /></ProtectedRoute>} />
-        <Route path="/vendor/projects" element={<ProtectedRoute><VendorProjects /></ProtectedRoute>} />
-        <Route path="/vendor/proposals" element={<ProtectedRoute><VendorProposals /></ProtectedRoute>} />
-        <Route path="/vendor/templates" element={<ProtectedRoute><VendorLayout><TemplateEditor /></VendorLayout></ProtectedRoute>} />
-        <Route path="/vendor/calendar" element={<ProtectedRoute><VendorCalendar /></ProtectedRoute>} />
-        <Route path="/vendor/clients" element={<ProtectedRoute><VendorClients /></ProtectedRoute>} />
-        <Route path="/vendor/finance" element={<ProtectedRoute><VendorFinance /></ProtectedRoute>} />
-        <Route path="/vendor/profile" element={<ProtectedRoute><VendorProfile /></ProtectedRoute>} />
-        <Route path="/vendor/settings" element={<ProtectedRoute><VendorSettings /></ProtectedRoute>} />
-        <Route path="/vendor/messages" element={<ProtectedRoute><VendorMessages /></ProtectedRoute>} />
-        <Route path="/vendor/notifications" element={<ProtectedRoute><VendorNotifications /></ProtectedRoute>} />
+          {/* Vendor Protected Routes */}
+          <Route path="/vendor/dashboard" element={<ProtectedRoute><VendorDashboard /></ProtectedRoute>} />
+          <Route path="/vendor/projects" element={<ProtectedRoute><VendorProjects /></ProtectedRoute>} />
+          <Route path="/vendor/projects/:id" element={<ProtectedRoute><VendorProjectDetails /></ProtectedRoute>} />
+          <Route path="/vendor/projects" element={<ProtectedRoute><VendorProjects /></ProtectedRoute>} />
+          <Route path="/vendor/proposals" element={<ProtectedRoute><VendorProposals /></ProtectedRoute>} />
+          <Route path="/vendor/templates" element={<ProtectedRoute><VendorLayout><TemplateEditor /></VendorLayout></ProtectedRoute>} />
+          <Route path="/vendor/calendar" element={<ProtectedRoute><VendorCalendar /></ProtectedRoute>} />
+          <Route path="/vendor/clients" element={<ProtectedRoute><VendorClients /></ProtectedRoute>} />
+          <Route path="/vendor/finance" element={<ProtectedRoute><VendorFinance /></ProtectedRoute>} />
+          <Route path="/vendor/profile" element={<ProtectedRoute><VendorProfile /></ProtectedRoute>} />
+          <Route path="/vendor/settings" element={<ProtectedRoute><VendorSettings /></ProtectedRoute>} />
+          <Route path="/vendor/messages" element={<ProtectedRoute><VendorMessages /></ProtectedRoute>} />
+          <Route path="/vendor/notifications" element={<ProtectedRoute><VendorNotifications /></ProtectedRoute>} />
 
-        {/* Admin Protected Routes */}
-        <Route path="/admin/dashboard" element={<ProtectedRoute><AdminDashboard /></ProtectedRoute>} />
-        <Route path="/admin/users" element={<ProtectedRoute><AdminUsers /></ProtectedRoute>} />
-        <Route path="/admin/metrics" element={<ProtectedRoute><AdminMetrics /></ProtectedRoute>} />
-        <Route path="/admin/platform" element={<ProtectedRoute><AdminPlatform /></ProtectedRoute>} />
-        <Route path="/admin/disputes" element={<ProtectedRoute><AdminDisputes /></ProtectedRoute>} />
-        <Route path="/admin/settings" element={<ProtectedRoute><AdminSettings /></ProtectedRoute>} />
+          {/* Admin Protected Routes */}
+          <Route path="/admin/dashboard" element={<ProtectedRoute><AdminDashboard /></ProtectedRoute>} />
+          <Route path="/admin/users" element={<ProtectedRoute><AdminUsers /></ProtectedRoute>} />
+          <Route path="/admin/metrics" element={<ProtectedRoute><AdminMetrics /></ProtectedRoute>} />
+          <Route path="/admin/platform" element={<ProtectedRoute><AdminPlatform /></ProtectedRoute>} />
+          <Route path="/admin/disputes" element={<ProtectedRoute><AdminDisputes /></ProtectedRoute>} />
+          <Route path="/admin/settings" element={<ProtectedRoute><AdminSettings /></ProtectedRoute>} />
 
-        <Route path="*" element={<Navigate to="/" replace />} />
-      </Routes>
-    </Router>
+          <Route path="*" element={<Navigate to="/" replace />} />
+        </Routes>
+      </Router>
+    </ToastProvider>
   );
 };
 

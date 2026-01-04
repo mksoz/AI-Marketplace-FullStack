@@ -1,4 +1,6 @@
 import React, { useState, useEffect, forwardRef, useImperativeHandle } from 'react';
+import api from '../services/api';
+import { useToast } from '../contexts/ToastContext';
 
 interface Milestone {
     id: string;
@@ -8,6 +10,14 @@ interface Milestone {
     status: 'PENDING' | 'IN_PROGRESS' | 'COMPLETED' | 'PAID';
     dueDate?: string;
     isPaid?: boolean;
+    completionNote?: string;
+    completedAt?: string;
+    paymentRequest?: {
+        id: string;
+        status: 'PENDING' | 'APPROVED' | 'REJECTED' | 'COMPLETED';
+        vendorNote?: string;
+        amount: number;
+    };
 }
 
 export interface VendorRoadmapEditorRef {
@@ -34,6 +44,17 @@ const VendorRoadmapEditor = forwardRef<VendorRoadmapEditorRef, VendorRoadmapEdit
     const [showNotifyModal, setShowNotifyModal] = useState(false);
     const [notificationText, setNotificationText] = useState('');
     const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'success'>('idle');
+
+    // Financial Modals State
+    const [showCompleteModal, setShowCompleteModal] = useState(false);
+    const [showPaymentRequestModal, setShowPaymentRequestModal] = useState(false);
+    const [selectedMilestone, setSelectedMilestone] = useState<Milestone | null>(null);
+    const [completionNote, setCompletionNote] = useState('');
+    const [paymentNote, setPaymentNote] = useState('');
+    const [financialLoading, setFinancialLoading] = useState(false);
+
+    // Toast notifications
+    const { showToast } = useToast();
 
     useEffect(() => {
         if (project?.milestones) {
@@ -68,6 +89,68 @@ const VendorRoadmapEditor = forwardRef<VendorRoadmapEditorRef, VendorRoadmapEdit
             setNotificationText('');
             setSaveStatus('idle');
         }, 1500);
+    };
+
+    const handleCompleteMilestone = async () => {
+        if (!selectedMilestone || !completionNote.trim()) {
+            showToast('La justificación es obligatoria', 'warning');
+            return;
+        }
+
+        setFinancialLoading(true);
+        try {
+            await api.post(`/milestones/${selectedMilestone.id}/complete`, {
+                completionNote: completionNote.trim()
+            });
+
+            // Update local state
+            setMilestones(prev => prev.map(m =>
+                m.id === selectedMilestone.id
+                    ? { ...m, status: 'COMPLETED', completionNote: completionNote.trim(), completedAt: new Date().toISOString() }
+                    : m
+            ));
+
+            // Close modal and reset
+            setShowCompleteModal(false);
+            setSelectedMilestone(null);
+            setCompletionNote('');
+            showToast('Hito marcado como completado', 'success');
+        } catch (error) {
+            console.error('Error completing milestone:', error);
+            showToast('Error al completar el hito', 'error');
+        } finally {
+            setFinancialLoading(false);
+        }
+    };
+
+    // Handle request payment for milestone
+    const handleRequestPayment = async () => {
+        if (!selectedMilestone) return;
+
+        setFinancialLoading(true);
+        try {
+            const response = await api.post(`/milestones/${selectedMilestone.id}/request-payment`, {
+                vendorNote: paymentNote.trim() || undefined
+            });
+
+            // Update local state
+            setMilestones(prev => prev.map(m =>
+                m.id === selectedMilestone.id
+                    ? { ...m, paymentRequest: response.data.paymentRequest }
+                    : m
+            ));
+
+            // Close modal and reset
+            setShowPaymentRequestModal(false);
+            setSelectedMilestone(null);
+            setPaymentNote('');
+            showToast('Solicitud de pago enviada correctamente', 'success');
+        } catch (error: any) {
+            console.error('Error requesting payment:', error);
+            showToast(error.response?.data?.message || 'Error al solicitar pago', 'error');
+        } finally {
+            setFinancialLoading(false);
+        }
     };
 
     const openAddModal = (index: number) => {
@@ -220,9 +303,22 @@ const VendorRoadmapEditor = forwardRef<VendorRoadmapEditorRef, VendorRoadmapEdit
                                 </div>
 
                                 <div className="flex justify-between items-center text-sm border-t border-gray-100 pt-4 mt-2">
+                                    {/* Left side: Amount or Action Button */}
                                     <div>
-                                        <span className={`block font-bold ${isPending ? 'text-gray-400' : 'text-gray-900'}`}>${milestone.amount.toLocaleString()} USD</span>
-                                        <span className="text-xs text-gray-500">{milestone.isPaid ? 'Pagado' : (isCompleted ? 'En Garantía' : 'Pendiente')}</span>
+                                        {/* Show amount only if no action button will replace it */}
+                                        {(milestone.amount === 0 || milestone.paymentRequest || isCompleted) && (
+                                            <div>
+                                                <span className={`block font-bold ${isPending ? 'text-gray-400' : 'text-gray-900'}`}>${milestone.amount.toLocaleString()} USD</span>
+                                                <div className="mt-1">
+                                                    <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-bold ${milestone.isPaid ? 'bg-green-100 text-green-700' :
+                                                        isCompleted ? 'bg-blue-100 text-blue-700' :
+                                                            'bg-gray-100 text-gray-600'
+                                                        }`}>
+                                                        {milestone.isPaid ? 'Pagado' : (isCompleted ? 'En Garantía' : 'Pendiente')}
+                                                    </span>
+                                                </div>
+                                            </div>
+                                        )}
                                     </div>
                                     <div className="text-right">
                                         {milestone.dueDate && (
@@ -233,6 +329,124 @@ const VendorRoadmapEditor = forwardRef<VendorRoadmapEditorRef, VendorRoadmapEdit
                                         )}
                                     </div>
                                 </div>
+
+                                {/* Financial Actions - Only in view mode - REDESIGNED */}
+                                {!isEditing && (
+                                    <>
+                                        {(() => {
+                                            const isPreviousCompleted = index === 0 || milestones[index - 1]?.status === 'COMPLETED' || milestones[index - 1]?.status === 'PAID';
+                                            const hasPayment = milestone.amount > 0;
+                                            const isAlreadyCompleted = milestone.status === 'COMPLETED' || milestone.status === 'PAID';
+                                            const hasApprovedRequest = milestone.paymentRequest?.status === 'APPROVED' || milestone.paymentRequest?.status === 'COMPLETED';
+
+                                            // Action button in top-right corner
+                                            if (!isAlreadyCompleted) {
+                                                // Hito CON pago y sin solicitud → Reemplazar posición del monto
+                                                if (hasPayment && !milestone.paymentRequest) {
+                                                    // Check if previous milestone is completed
+                                                    if (!isPreviousCompleted) {
+                                                        const previousMilestone = milestones[index - 1];
+                                                        return (
+                                                            <button
+                                                                disabled
+                                                                className="absolute bottom-8 left-6 px-4 py-2 bg-gray-400 text-white text-sm font-bold rounded-lg cursor-not-allowed opacity-75 flex items-center gap-2"
+                                                                title={`Bloqueado. Completa primero: "${previousMilestone?.title}"`}
+                                                            >
+                                                                <span className="material-symbols-outlined text-base">lock</span>
+                                                                Bloqueado ${milestone.amount.toLocaleString()}
+                                                            </button>
+                                                        );
+                                                    }
+
+                                                    return (
+                                                        <button
+                                                            onClick={() => {
+                                                                setSelectedMilestone(milestone);
+                                                                setShowPaymentRequestModal(true);
+                                                            }}
+                                                            className="absolute bottom-8 left-6 px-4 py-2 bg-gradient-to-r from-blue-500 to-blue-600 text-white text-sm font-bold rounded-lg hover:from-blue-600 hover:to-blue-700 shadow-md hover:shadow-lg transition-all flex items-center gap-2"
+                                                            title="Solicitar liberación de pago"
+                                                        >
+                                                            <span className="material-symbols-outlined text-base">lock_open</span>
+                                                            Liberar ${milestone.amount.toLocaleString()}
+                                                        </button>
+                                                    );
+                                                }
+
+                                                // Hito con pago aprobado O sin pago → Marcar completado
+                                                if ((hasPayment && hasApprovedRequest && milestone.isPaid) || !hasPayment) {
+                                                    if (!isPreviousCompleted) {
+                                                        const previousMilestone = milestones[index - 1];
+                                                        return (
+                                                            <div
+                                                                className="absolute top-4 right-4 flex items-center gap-2 px-3 py-1.5 bg-amber-50 border border-amber-200 rounded-lg text-xs text-amber-700 cursor-help"
+                                                                title={`Completa primero: "${previousMilestone?.title}"`}
+                                                            >
+                                                                <span className="material-symbols-outlined text-sm">lock</span>
+                                                                <span>Bloqueado</span>
+                                                            </div>
+                                                        );
+                                                    }
+
+                                                    return (
+                                                        <button
+                                                            onClick={() => {
+                                                                setSelectedMilestone(milestone);
+                                                                setShowCompleteModal(true);
+                                                            }}
+                                                            className="absolute top-4 right-4 px-4 py-2 bg-gradient-to-r from-green-500 to-green-600 text-white text-sm font-bold rounded-lg hover:from-green-600 hover:to-green-700 shadow-md hover:shadow-lg transition-all flex items-center gap-2"
+                                                            title="Marcar este hito como completado"
+                                                        >
+                                                            <span className="material-symbols-outlined text-base">check_circle</span>
+                                                            Completar
+                                                        </button>
+                                                    );
+                                                }
+                                            }
+
+                                            return null;
+                                        })()}
+
+                                        {/* Payment request status badge - Subtle, bottom-right - Hidden if COMPLETED (Paid) to avoid covering date */}
+                                        {milestone.paymentRequest && milestone.paymentRequest.status !== 'COMPLETED' && (
+                                            <div className="absolute bottom-4 right-4">
+                                                <div className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold border ${milestone.paymentRequest.status === 'PENDING' ? 'bg-blue-50 border-blue-200 text-blue-700' :
+                                                    milestone.paymentRequest.status === 'APPROVED' ? 'bg-purple-50 border-purple-200 text-purple-700' :
+                                                        milestone.paymentRequest.status === 'COMPLETED' ? 'bg-green-50 border-green-200 text-green-700' :
+                                                            'bg-red-50 border-red-200 text-red-700'
+                                                    }`}>
+                                                    <span className="material-symbols-outlined text-sm">
+                                                        {milestone.paymentRequest.status === 'COMPLETED' ? 'check_circle' :
+                                                            milestone.paymentRequest.status === 'APPROVED' ? 'thumb_up' :
+                                                                milestone.paymentRequest.status === 'REJECTED' ? 'cancel' : 'schedule'}
+                                                    </span>
+                                                    <span>
+                                                        {milestone.paymentRequest.status === 'PENDING' && 'Pendiente'}
+                                                        {milestone.paymentRequest.status === 'APPROVED' && 'Aprobado'}
+                                                        {milestone.paymentRequest.status === 'COMPLETED' && 'Pagado'}
+                                                        {milestone.paymentRequest.status === 'REJECTED' && 'Rechazado'}
+                                                    </span>
+                                                </div>
+                                            </div>
+                                        )}
+
+                                        {/* Completion note - Expandable section */}
+                                        {milestone.completionNote && (
+                                            <div className="mt-4 pt-4 border-t border-gray-100">
+                                                <details className="group">
+                                                    <summary className="cursor-pointer flex items-center gap-2 text-sm font-bold text-green-700 hover:text-green-800 select-none">
+                                                        <span className="material-symbols-outlined text-base">description</span>
+                                                        Ver justificación de completado
+                                                        <span className="material-symbols-outlined text-base ml-auto group-open:rotate-180 transition-transform">expand_more</span>
+                                                    </summary>
+                                                    <p className="mt-3 text-sm text-gray-700 italic bg-green-50 p-3 rounded-lg border border-green-100">
+                                                        "{milestone.completionNote}"
+                                                    </p>
+                                                </details>
+                                            </div>
+                                        )}
+                                    </>
+                                )}
                             </div>
 
                             {isEditing && !isLocked && (
@@ -375,6 +589,131 @@ const VendorRoadmapEditor = forwardRef<VendorRoadmapEditorRef, VendorRoadmapEdit
                                 </div>
                             </>
                         )}
+                    </div>
+                </div>
+            )}
+
+            {/* Complete Milestone Modal */}
+            {showCompleteModal && selectedMilestone && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
+                    <div className="bg-white rounded-2xl w-full max-w-md shadow-2xl animate-in zoom-in-95">
+                        <div className="p-6">
+                            <div className="text-center mb-6">
+                                <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                                    <span className="material-symbols-outlined text-3xl text-green-600">check_circle</span>
+                                </div>
+                                <h3 className="text-2xl font-bold text-gray-900 mb-2">Marcar Hito Completado</h3>
+                                <p className="text-gray-600 text-sm">
+                                    Hito: <span className="font-bold">{selectedMilestone.title}</span>
+                                </p>
+                            </div>
+
+                            <div className="mb-6">
+                                <label className="block text-sm font-bold text-gray-700 mb-2">
+                                    Justificación <span className="text-red-500">*</span>
+                                </label>
+                                <textarea
+                                    className="w-full p-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-green-500 outline-none resize-none h-32"
+                                    placeholder="Describe por qué este hito está completado..."
+                                    value={completionNote}
+                                    onChange={(e) => setCompletionNote(e.target.value)}
+                                    disabled={financialLoading}
+                                />
+                                <p className="text-xs text-gray-500 mt-1">Esta justificación será visible para el cliente</p>
+                            </div>
+
+                            <div className="flex gap-3">
+                                <button
+                                    onClick={() => {
+                                        setShowCompleteModal(false);
+                                        setSelectedMilestone(null);
+                                        setCompletionNote('');
+                                    }}
+                                    className="flex-1 py-2.5 text-gray-600 font-bold hover:bg-gray-100 rounded-xl"
+                                    disabled={financialLoading}
+                                >
+                                    Cancelar
+                                </button>
+                                <button
+                                    onClick={handleCompleteMilestone}
+                                    className="flex-1 py-2.5 bg-green-600 text-white font-bold rounded-xl hover:bg-green-700 shadow-lg disabled:opacity-50 disabled:cursor-not-allowed"
+                                    disabled={financialLoading || !completionNote.trim()}
+                                >
+                                    {financialLoading ? (
+                                        <span className="flex items-center justify-center gap-2">
+                                            <span className="material-symbols-outlined animate-spin text-sm">sync</span>
+                                            Procesando...
+                                        </span>
+                                    ) : (
+                                        'Confirmar Completado'
+                                    )}
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* Request Payment Modal */}
+            {showPaymentRequestModal && selectedMilestone && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
+                    <div className="bg-white rounded-2xl w-full max-w-md shadow-2xl animate-in zoom-in-95">
+                        <div className="p-6">
+                            <div className="text-center mb-6">
+                                <div className="w-16 h-16 bg-blue-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                                    <span className="material-symbols-outlined text-3xl text-blue-600">payments</span>
+                                </div>
+                                <h3 className="text-2xl font-bold text-gray-900 mb-2">Solicitar Pago</h3>
+                                <p className="text-gray-600 text-sm mb-4">
+                                    Hito: <span className="font-bold">{selectedMilestone.title}</span>
+                                </p>
+                                <div className="bg-blue-50 border-2 border-blue-200 rounded-xl p-4">
+                                    <p className="text-xs text-blue-600 font-bold uppercase mb-1">Monto a Solicitar</p>
+                                    <p className="text-3xl font-black text-gray-900">${selectedMilestone.amount.toLocaleString()}</p>
+                                </div>
+                            </div>
+
+                            <div className="mb-6">
+                                <label className="block text-sm font-bold text-gray-700 mb-2">
+                                    Nota Opcional
+                                </label>
+                                <textarea
+                                    className="w-full p-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none resize-none h-24"
+                                    placeholder="Añade información adicional para el cliente (opcional)..."
+                                    value={paymentNote}
+                                    onChange={(e) => setPaymentNote(e.target.value)}
+                                    disabled={financialLoading}
+                                />
+                            </div>
+
+                            <div className="flex gap-3">
+                                <button
+                                    onClick={() => {
+                                        setShowPaymentRequestModal(false);
+                                        setSelectedMilestone(null);
+                                        setPaymentNote('');
+                                    }}
+                                    className="flex-1 py-2.5 text-gray-600 font-bold hover:bg-gray-100 rounded-xl"
+                                    disabled={financialLoading}
+                                >
+                                    Cancelar
+                                </button>
+                                <button
+                                    onClick={handleRequestPayment}
+                                    className="flex-1 py-2.5 bg-blue-600 text-white font-bold rounded-xl hover:bg-blue-700 shadow-lg disabled:opacity-50 disabled:cursor-not-allowed"
+                                    disabled={financialLoading}
+                                >
+                                    {financialLoading ? (
+                                        <span className="flex items-center justify-center gap-2">
+                                            <span className="material-symbols-outlined animate-spin text-sm">sync</span>
+                                            Enviando...
+                                        </span>
+                                    ) : (
+                                        'Enviar Solicitud'
+                                    )}
+                                </button>
+                            </div>
+                        </div>
                     </div>
                 </div>
             )}

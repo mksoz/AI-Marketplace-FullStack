@@ -358,7 +358,12 @@ export const getProjectTracking = async (req: Request, res: Response) => {
         const project = await prisma.project.findUnique({
             where: { id },
             include: {
-                milestones: { orderBy: { order: 'asc' } },
+                milestones: {
+                    orderBy: { order: 'asc' },
+                    include: {
+                        paymentRequest: true
+                    }
+                },
                 folders: { include: { files: true }, where: { parentId: null } },
                 files: { where: { folderId: null } }, // Root files
                 contract: { select: { activeVersionId: true, status: true } },

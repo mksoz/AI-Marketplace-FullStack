@@ -93,12 +93,34 @@ export const getMe = async (req: Request, res: Response) => {
 
         const userData = await prisma.user.findUnique({
             where: { id: user.userId },
-            select: { id: true, email: true, role: true }
+            select: { id: true, email: true, role: true, simulationMode: true }
         });
 
         res.json(userData);
     } catch (error) {
         console.error('getMe Error:', error);
         res.status(500).json({ message: 'Failed to fetch user' });
+    }
+};
+
+export const updateMe = async (req: Request, res: Response) => {
+    try {
+        const user = req.user;
+        if (!user) return res.status(401).json({ message: 'Unauthorized' });
+
+        const { simulationMode } = req.body;
+
+        const updatedUser = await prisma.user.update({
+            where: { id: user.userId },
+            data: {
+                simulationMode: simulationMode !== undefined ? simulationMode : undefined
+            },
+            select: { id: true, email: true, role: true, simulationMode: true }
+        });
+
+        res.json(updatedUser);
+    } catch (error) {
+        console.error('updateMe Error:', error);
+        res.status(500).json({ message: 'Failed to update user' });
     }
 };

@@ -206,7 +206,17 @@ const ClientProjectDetails: React.FC = () => {
                                         <span className="material-symbols-outlined text-primary">timeline</span> Roadmap del Proyecto
                                     </h3>
                                     <div className="max-h-[500px] overflow-y-auto pr-2 custom-scrollbar">
-                                        <ClientProjectMilestones project={project} />
+                                        <ClientProjectMilestones
+                                            project={project}
+                                            onUpdate={async () => {
+                                                try {
+                                                    const res = await api.get(`/projects/${id}/tracking`);
+                                                    setProject(res.data);
+                                                } catch (error) {
+                                                    console.error('Error refreshing project:', error);
+                                                }
+                                            }}
+                                        />
                                     </div>
                                 </div>
                             </div>
@@ -437,13 +447,32 @@ const ClientProjectDetails: React.FC = () => {
                                 </div>
                             </div>
 
-                            {/* Financials Manager (New) */}
-                            {/* Ensuring milestones is always an array to prevent crash */}
+                            {/* Financials Manager */}
                             <FinancialsManager
                                 milestones={project.milestones || []}
                                 userRole="client"
-                                onApproveRelease={(id) => alert(`Aprobando ${id}`)}
-                                onRejectRelease={(id, reason) => alert(`Rechazando ${id}: ${reason}`)}
+                                onApproveRelease={async (requestId) => {
+                                    try {
+                                        await api.post(`/milestones/payment-requests/${requestId}/approve`);
+                                        alert('Pago aprobado correctamente');
+                                        const res = await api.get(`/projects/${id}/tracking`);
+                                        setProject(res.data);
+                                    } catch (error: any) {
+                                        console.error('Error approving payment:', error);
+                                        alert(error.response?.data?.message || 'Error al aprobar pago');
+                                    }
+                                }}
+                                onRejectRelease={async (requestId, reason) => {
+                                    try {
+                                        await api.post(`/milestones/payment-requests/${requestId}/reject`, { rejectionReason: reason });
+                                        alert('Solicitud rechazada');
+                                        const res = await api.get(`/projects/${id}/tracking`);
+                                        setProject(res.data);
+                                    } catch (error: any) {
+                                        console.error('Error rejecting payment:', error);
+                                        alert(error.response?.data?.message || 'Error al rechazar');
+                                    }
+                                }}
                             />
                         </div>
                     )}
