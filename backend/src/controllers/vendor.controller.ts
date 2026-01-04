@@ -25,7 +25,7 @@ export const getVendors = async (req: Request, res: Response) => {
             });
 
             if (clientProfile) {
-                clientProfile.savedVendors.forEach(sv => savedVendorIds.add(sv.vendorId));
+                clientProfile.savedVendors.forEach((sv: any) => savedVendorIds.add(sv.vendorId));
             }
         }
 
@@ -163,20 +163,20 @@ export const getMyVendors = async (req: Request, res: Response) => {
         }
 
         // Combine saved vendors and vendors from projects (remove duplicates)
-        const savedVendorIds = new Set(clientProfile.savedVendors.map(sv => sv.vendorId));
-        const projectVendors = clientProfile.projects
-            .filter(p => p.vendor)
-            .map(p => p.vendor);
+        const savedVendorIds = new Set(clientProfile.savedVendors.map((sv: any) => sv.vendorId));
+        const projectVendors = (clientProfile.projects as any[])
+            .filter((p: any) => p.vendor)
+            .map((p: any) => p.vendor);
 
-        const savedVendors = clientProfile.savedVendors.map(sv => ({
+        const savedVendors = clientProfile.savedVendors.map((sv: any) => ({
             ...sv.vendor,
             isSaved: true,
-            hasProject: projectVendors.some(pv => pv?.id === sv.vendorId)
+            hasProject: projectVendors.some((pv: any) => pv?.id === sv.vendorId)
         }));
 
         const projectOnlyVendors = projectVendors
-            .filter(v => v && !savedVendorIds.has(v.id))
-            .map(v => ({
+            .filter((v: any) => v && !savedVendorIds.has(v.id))
+            .map((v: any) => ({
                 ...v,
                 isSaved: false,
                 hasProject: true
@@ -190,3 +190,113 @@ export const getMyVendors = async (req: Request, res: Response) => {
         res.status(500).json({ message: 'Error fetching my vendors' });
     }
 };
+
+// Get vendor's client list with stats
+export const getMyClients = async (req: Request, res: Response) => {
+    try {
+        const user = req.user;
+
+        if (!user || user.role !== 'VENDOR') {
+            return res.status(403).json({ message: 'Only vendors can access this' });
+        }
+
+        const vendorProfile = await prisma.vendorProfile.findUnique({
+            where: { userId: user.userId }
+        });
+
+        if (!vendorProfile) {
+            return res.status(404).json({ message: 'Vendor profile not found' });
+        }
+
+        // Get all projects for this vendor with client info
+        const projects = await prisma.project.findMany({
+            where: { vendorId: vendorProfile.id },
+            include: {
+                client: {
+                    include: {
+                        user: {
+                            select: { email: true }
+                        }
+                    }
+                },
+                milestones: {
+                    select: {
+                        status: true,
+                        amount: true,
+                        isPaid: true
+                    }
+                },
+                conversation: {
+                    include: {
+                        messages: {
+                            orderBy: { createdAt: 'desc' },
+                            take: 1
+                        }
+                    }
+                }
+            }
+        });
+
+        // Group projects by client and calculate stats
+        const clientMap = new Map<string, any>();
+
+        projects.forEach((project: any) => {
+            const clientId = project.client.id;
+
+            if (!clientMap.has(clientId)) {
+                clientMap.set(clientId, {
+                    id: clientId,
+                    companyName: project.client.companyName || 'Cliente Anónimo',
+                    industry: project.client.industry,
+                    website: project.client.website,
+                    email: project.client.user.email,
+                    projectsCount: {
+                        active: 0,
+                        completed: 0,
+                        total: 0
+                    },
+                    ltv: 0,
+                    lastContact: null as Date | null,
+                    pendingPayments: 0,
+                    hasActiveProject: false
+                });
+            }
+
+            const client = clientMap.get(clientId);
+
+            // Update project counts
+            client.projectsCount.total += 1;
+            if (project.status === 'IN_PROGRESS') {
+                client.projectsCount.active += 1;
+                client.hasActiveProject = true;
+            } else if (project.status === 'COMPLETED') {
+                client.projectsCount.completed += 1;
+            }
+
+            // Add to LTV
+            client.ltv += project.budget || 0;
+
+            // Calculate pending payments
+            const completedUnpaid = project.milestones.filter((m: any) =>
+                (m.status === 'COMPLETED' || m.status === 'PAID') && !m.isPaid
+            );
+            client.pendingPayments += completedUnpaid.reduce((sum: number, m: any) => sum + (m.amount || 0), 0);
+
+            // Update last contact
+            if (project.conversation?.messages?.[0]) {
+                const messageDate = new Date(project.conversation.messages[0].createdAt);
+                if (!client.lastContact || messageDate > client.lastContact) {
+                    client.lastContact = messageDate;
+                }
+            }
+        });
+
+        const clients = Array.from(clientMap.values());
+
+        res.json({ clients });
+    } catch (error) {
+        console.error('Error fetching vendor clients:', error);
+        res.status(500).json({ message: 'Error fetching clients' });
+    }
+};
+
