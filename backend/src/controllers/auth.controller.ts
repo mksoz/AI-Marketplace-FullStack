@@ -109,18 +109,26 @@ export const updateMe = async (req: Request, res: Response) => {
         if (!user) return res.status(401).json({ message: 'Unauthorized' });
 
         const { simulationMode } = req.body;
+        console.log(`[UPDATE USER] ID: ${user.userId}, Body:`, req.body);
+
+        const updateData: any = {};
+        if (simulationMode !== undefined) {
+            updateData.simulationMode = simulationMode;
+        }
+
+        if (Object.keys(updateData).length === 0) {
+            return res.status(400).json({ message: 'No valid fields provided for update' });
+        }
 
         const updatedUser = await prisma.user.update({
             where: { id: user.userId },
-            data: {
-                simulationMode: simulationMode !== undefined ? simulationMode : undefined
-            },
+            data: updateData,
             select: { id: true, email: true, role: true, simulationMode: true }
         });
 
         res.json(updatedUser);
-    } catch (error) {
+    } catch (error: any) {
         console.error('updateMe Error:', error);
-        res.status(500).json({ message: 'Failed to update user' });
+        res.status(500).json({ message: error.message || 'Failed to update user' });
     }
 };

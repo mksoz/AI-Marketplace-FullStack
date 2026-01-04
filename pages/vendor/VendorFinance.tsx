@@ -1,265 +1,369 @@
 import React, { useState, useRef, useEffect } from 'react';
 import VendorLayout from '../../components/VendorLayout';
+import api from '../../services/api';
+import { useToast } from '../../contexts/ToastContext';
+
+interface FinancialItem {
+    id: string;
+    reference: string;
+    project: string;
+    client: string;
+    date: string;
+    amount: number;
+    status: 'Pagado' | 'Aprobado' | 'Pendiente' | 'Rechazado' | 'En Escrow' | 'En Garantía';
+    originalStatus?: string;
+    type: 'MILESTONE' | 'TRANSACTION';
+    isDebit?: boolean;
+}
+
+interface FinanceSummary {
+    balance: number;
+    currency: string;
+    escrowAmount: number;
+    projectedAmount: number;
+    financialItems: FinancialItem[];
+}
 
 const VendorFinance: React.FC = () => {
-  // Date Picker State
-  const [isDateOpen, setIsDateOpen] = useState(false);
-  const [dateRange, setDateRange] = useState({
-    label: 'Este Mes',
-    start: new Date().toISOString().split('T')[0].slice(0, 7) + '-01', // First day of current month
-    end: new Date().toISOString().split('T')[0] // Today
-  });
-  const dateRef = useRef<HTMLDivElement>(null);
+    const { showToast } = useToast();
+    const [loading, setLoading] = useState(true);
+    const [summary, setSummary] = useState<FinanceSummary>({
+        balance: 0,
+        currency: 'USD',
+        escrowAmount: 0,
+        projectedAmount: 0,
+        financialItems: []
+    });
 
-  // Close dropdown when clicking outside
-  useEffect(() => {
-    const handleClickOutside = (event: MouseEvent) => {
-      if (dateRef.current && !dateRef.current.contains(event.target as Node)) {
-        setIsDateOpen(false);
-      }
+    // Filter State
+    const [filterStatus, setFilterStatus] = useState<'All' | 'Paid' | 'Escrow' | 'Pending'>('All');
+
+    // Date Picker State - Default to 'Todos' to show Projected (Future) and History
+    const [isDateOpen, setIsDateOpen] = useState(false);
+    const [dateRange, setDateRange] = useState({
+        label: 'Todos',
+        start: '2023-01-01',
+        end: '2030-12-31'
+    });
+    const dateRef = useRef<HTMLDivElement>(null);
+
+    useEffect(() => {
+        fetchFinanceData();
+    }, []);
+
+    const fetchFinanceData = async () => {
+        try {
+            setLoading(true);
+            const res = await api.get('/accounts/vendor-summary');
+            setSummary(res.data);
+        } catch (error) {
+            console.error('Error fetching finance data:', error);
+            showToast('Error al cargar datos financieros', 'error');
+        } finally {
+            setLoading(false);
+        }
     };
-    document.addEventListener('mousedown', handleClickOutside);
-    return () => document.removeEventListener('mousedown', handleClickOutside);
-  }, []);
 
-  const applyPreset = (preset: string) => {
-    const today = new Date();
-    let start = '';
-    let end = today.toISOString().split('T')[0];
-    let label = preset;
+    // Close dropdown when clicking outside
+    useEffect(() => {
+        const handleClickOutside = (event: MouseEvent) => {
+            if (dateRef.current && !dateRef.current.contains(event.target as Node)) {
+                setIsDateOpen(false);
+            }
+        };
+        document.addEventListener('mousedown', handleClickOutside);
+        return () => document.removeEventListener('mousedown', handleClickOutside);
+    }, []);
 
-    if (preset === 'Hoy') {
-        start = end;
-    } else if (preset === 'Últimos 7 días') {
-        const d = new Date();
-        d.setDate(d.getDate() - 7);
-        start = d.toISOString().split('T')[0];
-    } else if (preset === 'Este Mes') {
-        start = new Date(today.getFullYear(), today.getMonth(), 1).toISOString().split('T')[0];
-    } else if (preset === 'Mes Pasado') {
-        const firstDayPrevMonth = new Date(today.getFullYear(), today.getMonth() - 1, 1);
-        const lastDayPrevMonth = new Date(today.getFullYear(), today.getMonth(), 0);
-        start = firstDayPrevMonth.toISOString().split('T')[0];
-        end = lastDayPrevMonth.toISOString().split('T')[0];
-    } else {
-        label = 'Custom';
-        // Keep current manual values
-        start = dateRange.start;
-        end = dateRange.end;
-    }
+    const applyPreset = (preset: string) => {
+        const today = new Date();
+        let start = '';
+        let end = today.toISOString().split('T')[0];
+        let label = preset;
 
-    setDateRange({ label, start, end });
-    if (preset !== 'Custom') setIsDateOpen(false);
-  };
+        if (preset === 'Hoy') {
+            start = end;
+        } else if (preset === 'Últimos 7 días') {
+            const d = new Date();
+            d.setDate(d.getDate() - 7);
+            start = d.toISOString().split('T')[0];
+        } else if (preset === 'Este Mes') {
+            start = new Date(today.getFullYear(), today.getMonth(), 1).toISOString().split('T')[0];
+            end = new Date(today.getFullYear(), today.getMonth() + 1, 0).toISOString().split('T')[0];
+        } else if (preset === 'Mes Pasado') {
+            const firstDayPrevMonth = new Date(today.getFullYear(), today.getMonth() - 1, 1);
+            const lastDayPrevMonth = new Date(today.getFullYear(), today.getMonth(), 0);
+            start = firstDayPrevMonth.toISOString().split('T')[0];
+            end = lastDayPrevMonth.toISOString().split('T')[0];
+        } else if (preset === 'Todos') {
+            start = '2023-01-01';
+            end = '2030-12-31'; // Future included for Projected
+            label = 'Todo el historial';
+        } else {
+            label = 'Custom';
+            start = dateRange.start;
+            end = dateRange.end;
+        }
 
-  const handleManualChange = (type: 'start' | 'end', value: string) => {
-      setDateRange(prev => ({ ...prev, label: 'Personalizado', [type]: value }));
-  };
+        setDateRange({ label, start, end });
+        if (preset !== 'Custom') setIsDateOpen(false);
+    };
 
-  return (
-    <VendorLayout>
-      <div className="space-y-8 pb-12">
-         <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
-            <div>
-                <h1 className="text-3xl font-black text-gray-900">Finanzas y Flujo de Caja</h1>
-                <p className="text-gray-500 mt-1">Gestiona facturación, cobros y retiros.</p>
-            </div>
-            <div className="flex gap-2">
-                <button className="bg-white border border-gray-300 text-gray-700 px-4 py-2 rounded-lg text-sm font-bold hover:bg-gray-50 flex items-center gap-2">
-                    <span className="material-symbols-outlined">download</span> Exportar CSV
-                </button>
-                <button className="bg-green-600 text-white px-6 py-2 rounded-lg font-bold shadow-sm hover:bg-green-700 flex items-center gap-2">
-                    <span className="material-symbols-outlined">account_balance</span>
-                    Configurar Retiros
-                </button>
-            </div>
-         </div>
+    const handleManualChange = (type: 'start' | 'end', value: string) => {
+        setDateRange(prev => ({ ...prev, label: 'Personalizado', [type]: value }));
+    };
 
-         {/* Summary Cards */}
-         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-            <div className="bg-white border border-gray-200 p-6 rounded-xl shadow-sm relative overflow-hidden group">
-               <div className="absolute top-0 right-0 w-20 h-20 bg-green-50 rounded-bl-full -mr-4 -mt-4 transition-transform group-hover:scale-110"></div>
-               <div className="relative z-10">
-                   <div className="flex justify-between items-start mb-2">
-                       <p className="text-gray-500 text-sm font-bold uppercase">Disponible para Retiro</p>
-                       <span className="p-2 bg-green-50 text-green-600 rounded-lg"><span className="material-symbols-outlined">savings</span></span>
-                   </div>
-                   <p className="text-4xl font-black text-gray-900">$8,450.00</p>
-                   <button className="text-sm font-bold text-green-600 hover:underline mt-2 flex items-center gap-1">
-                       Retirar ahora <span className="material-symbols-outlined text-base">arrow_forward</span>
-                   </button>
-               </div>
-            </div>
-            <div className="bg-[#1313ec] text-white p-6 rounded-xl shadow-lg relative overflow-hidden group">
-               <div className="relative z-10">
-                   <div className="flex justify-between items-start mb-2">
-                       <p className="text-blue-200 text-sm font-bold uppercase">En Escrow (Protegido)</p>
-                       <span className="p-2 bg-white/20 text-white rounded-lg"><span className="material-symbols-outlined">lock</span></span>
-                   </div>
-                   <p className="text-4xl font-black">$15,000.00</p>
-                   <p className="text-sm text-blue-200 mt-2">Se libera al aprobar hitos</p>
-               </div>
-               <span className="material-symbols-outlined absolute -right-4 -bottom-4 text-9xl text-white/10 group-hover:scale-110 transition-transform">security</span>
-            </div>
-            <div className="bg-white border border-gray-200 p-6 rounded-xl shadow-sm relative overflow-hidden group">
-               <div className="absolute top-0 right-0 w-20 h-20 bg-purple-50 rounded-bl-full -mr-4 -mt-4 transition-transform group-hover:scale-110"></div>
-               <div className="relative z-10">
-                   <div className="flex justify-between items-start mb-2">
-                       <p className="text-gray-500 text-sm font-bold uppercase">Proyectado (Q4)</p>
-                       <span className="p-2 bg-purple-50 text-purple-600 rounded-lg"><span className="material-symbols-outlined">trending_up</span></span>
-                   </div>
-                   <p className="text-4xl font-black text-gray-900">$42,000</p>
-                   <p className="text-sm text-gray-400 mt-2">Basado en contratos activos</p>
-               </div>
-            </div>
-         </div>
+    // Filtering Logic
+    const filteredItems = summary.financialItems.filter(item => {
+        const itemDate = new Date(item.date).toISOString().split('T')[0];
+        if (itemDate < dateRange.start || itemDate > dateRange.end) return false;
 
-         {/* Detailed Table & Filters */}
-         <div className="space-y-4">
-            
-            {/* Toolbar */}
-            <div className="flex flex-col md:flex-row justify-between gap-4 bg-white p-4 rounded-xl border border-gray-200 shadow-sm z-20 relative">
-                <div className="flex gap-2 items-center w-full md:w-auto overflow-x-auto no-scrollbar">
-                    <span className="text-sm font-bold text-gray-500 uppercase mr-2">Filtrar:</span>
-                    <button className="px-3 py-1.5 bg-dark text-white rounded-lg text-sm font-medium">Todos</button>
-                    <button className="px-3 py-1.5 bg-gray-100 text-gray-600 hover:bg-gray-200 rounded-lg text-sm font-medium">Pagados</button>
-                    <button className="px-3 py-1.5 bg-gray-100 text-gray-600 hover:bg-gray-200 rounded-lg text-sm font-medium">En Escrow</button>
-                    <button className="px-3 py-1.5 bg-gray-100 text-gray-600 hover:bg-gray-200 rounded-lg text-sm font-medium">Pendientes</button>
+        if (filterStatus === 'All') return true;
+        if (filterStatus === 'Paid') return item.status === 'Pagado';
+        if (filterStatus === 'Escrow') return item.status === 'En Escrow' || item.status === 'En Garantía' || item.status === 'Aprobado';
+        if (filterStatus === 'Pending') return item.status === 'Pendiente';
+        return true;
+    });
+
+    const currencyFormatter = new Intl.NumberFormat('en-US', {
+        style: 'currency',
+        currency: 'USD'
+    });
+
+    return (
+        <VendorLayout>
+            <div className="max-w-7xl mx-auto space-y-8 pb-12">
+                {/* Header */}
+                <div className="flex flex-col md:flex-row justify-between items-end gap-4 border-b border-gray-100 pb-6">
+                    <div>
+                        <h1 className="text-3xl font-black text-gray-900 tracking-tight">Finanzas</h1>
+                        <p className="text-gray-500 mt-1">Resumen de actividad y flujo de caja</p>
+                    </div>
+                    <div className="flex gap-3">
+                        <button
+                            onClick={() => {
+                                const header = ['ID', 'Referencia', 'Proyecto', 'Cliente', 'Fecha', 'Monto', 'Estado'];
+                                const rows = filteredItems.map(item => [
+                                    item.id, item.reference, item.project, item.client, new Date(item.date).toLocaleDateString(), item.amount, item.status
+                                ]);
+                                const csvContent = [header, ...rows].map(e => e.join(',')).join('\n');
+                                const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+                                const link = document.createElement('a');
+                                link.href = URL.createObjectURL(blob);
+                                link.download = 'finanzas.csv';
+                                link.click();
+                            }}
+                            className="text-gray-600 px-4 py-2 text-sm font-medium hover:text-gray-900 transition-colors flex items-center gap-2"
+                        >
+                            <span className="material-symbols-outlined text-[18px]">download</span> Exportar
+                        </button>
+                        <button className="bg-primary text-white px-5 py-2.5 rounded-lg text-sm font-bold shadow-lg shadow-primary/20 hover:bg-primary/90 transition-all flex items-center gap-2">
+                            <span className="material-symbols-outlined">account_balance_wallet</span>
+                            Configurar Retiros
+                        </button>
+                    </div>
                 </div>
-                
-                {/* Date Picker Widget */}
-                <div className="relative w-full md:w-auto" ref={dateRef}>
-                    <button 
-                        onClick={() => setIsDateOpen(!isDateOpen)}
-                        className="flex items-center justify-between gap-3 w-full md:w-64 bg-white border border-gray-300 hover:border-gray-400 text-gray-700 px-4 py-2 rounded-lg shadow-sm transition-all text-sm font-medium"
-                    >
-                        <div className="flex items-center gap-2">
-                            <span className="material-symbols-outlined text-gray-500">calendar_today</span>
-                            <span>{dateRange.label === 'Personalizado' ? `${dateRange.start} - ${dateRange.end}` : dateRange.label}</span>
-                        </div>
-                        <span className="material-symbols-outlined text-gray-400 text-lg">expand_more</span>
-                    </button>
 
-                    {isDateOpen && (
-                        <div className="absolute top-full right-0 mt-2 w-72 bg-white rounded-xl shadow-floating border border-gray-200 p-4 z-50 animate-in fade-in zoom-in-95 duration-200">
-                            <div className="space-y-1 mb-4">
-                                {['Hoy', 'Últimos 7 días', 'Este Mes', 'Mes Pasado'].map(preset => (
-                                    <button 
-                                        key={preset}
-                                        onClick={() => applyPreset(preset)}
-                                        className={`w-full text-left px-3 py-2 rounded-lg text-sm font-medium transition-colors flex justify-between items-center ${dateRange.label === preset ? 'bg-primary/10 text-primary' : 'text-gray-700 hover:bg-gray-50'}`}
-                                    >
-                                        {preset}
-                                        {dateRange.label === preset && <span className="material-symbols-outlined text-sm">check</span>}
-                                    </button>
-                                ))}
-                            </div>
-                            
-                            <div className="border-t border-gray-100 pt-3">
-                                <p className="text-xs font-bold text-gray-400 uppercase mb-2">Rango Personalizado</p>
-                                <div className="space-y-2">
-                                    <div className="flex items-center justify-between gap-2">
-                                        <span className="text-xs text-gray-500 w-10">Desde</span>
-                                        <input 
-                                            type="date" 
-                                            value={dateRange.start}
-                                            onChange={(e) => handleManualChange('start', e.target.value)}
-                                            className="flex-1 bg-gray-50 border border-gray-200 rounded px-2 py-1 text-xs text-gray-700 outline-none focus:border-primary"
-                                        />
-                                    </div>
-                                    <div className="flex items-center justify-between gap-2">
-                                        <span className="text-xs text-gray-500 w-10">Hasta</span>
-                                        <input 
-                                            type="date" 
-                                            value={dateRange.end}
-                                            onChange={(e) => handleManualChange('end', e.target.value)}
-                                            className="flex-1 bg-gray-50 border border-gray-200 rounded px-2 py-1 text-xs text-gray-700 outline-none focus:border-primary"
-                                        />
-                                    </div>
-                                </div>
-                                <button 
-                                    onClick={() => setIsDateOpen(false)}
-                                    className="w-full mt-3 bg-dark text-white text-xs font-bold py-2 rounded-lg hover:bg-black transition-colors"
-                                >
-                                    Aplicar
+                {/* Minimalist Summary Cards */}
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                    {/* Balance Card */}
+                    <div className="bg-white p-6 rounded-xl border border-gray-100 shadow-sm hover:shadow-md transition-shadow">
+                        <div className="flex justify-between items-start mb-4">
+                            <p className="text-green-600 text-xs font-semibold uppercase tracking-wider">Disponible</p>
+                            <span className="material-symbols-outlined text-green-200">wallet</span>
+                        </div>
+                        <p className="text-3xl font-bold text-gray-900 tracking-tight">
+                            {loading ? '...' : currencyFormatter.format(summary.balance)}
+                        </p>
+                        {summary.balance > 0 && (
+                            <div className="mt-4 pt-4 border-t border-gray-50">
+                                <button className="text-xs font-bold text-gray-900 flex items-center gap-1 group">
+                                    Retirar fondos <span className="material-symbols-outlined text-sm group-hover:translate-x-0.5 transition-transform">arrow_forward</span>
                                 </button>
                             </div>
+                        )}
+                    </div>
+
+                    {/* Escrow/In-Progress Card */}
+                    <div className="bg-white p-6 rounded-xl border border-gray-100 shadow-sm hover:shadow-md transition-shadow">
+                        <div className="flex justify-between items-start mb-4">
+                            <div className="flex items-center gap-2">
+                                <p className="text-blue-600 text-xs font-semibold uppercase tracking-wider">En Escrow</p>
+                                <span className="w-1.5 h-1.5 rounded-full bg-blue-500 animate-pulse"></span>
+                            </div>
+                            <span className="material-symbols-outlined text-blue-200">lock</span>
                         </div>
-                    )}
+                        <p className="text-3xl font-bold text-gray-900 tracking-tight">
+                            {loading ? '...' : currencyFormatter.format(summary.escrowAmount)}
+                        </p>
+                        <p className="text-xs text-blue-400 mt-2">Fondos asegurados</p>
+                    </div>
+
+                    {/* Projected Card */}
+                    <div className="bg-white p-6 rounded-xl border border-gray-100 shadow-sm hover:shadow-md transition-shadow">
+                        <div className="flex justify-between items-start mb-4">
+                            <p className="text-amber-600 text-xs font-semibold uppercase tracking-wider">Proyectado</p>
+                            <span className="material-symbols-outlined text-amber-200">trending_up</span>
+                        </div>
+                        <p className="text-3xl font-bold text-gray-900 tracking-tight">
+                            {loading ? '...' : currencyFormatter.format(summary.projectedAmount)}
+                        </p>
+                        <p className="text-xs text-amber-400 mt-2">Por iniciar</p>
+                    </div>
+                </div>
+
+                {/* Filters & Table */}
+                <div className="space-y-6">
+                    {/* Minimal Toolbar */}
+                    <div className="flex flex-col md:flex-row justify-between items-center gap-4">
+                        <div className="flex gap-1 p-1 bg-gray-50 rounded-lg">
+                            {(['All', 'Paid', 'Escrow', 'Pending'] as const).map((status) => (
+                                <button
+                                    key={status}
+                                    onClick={() => setFilterStatus(status)}
+                                    className={`px-4 py-1.5 rounded-md text-xs font-medium transition-all ${filterStatus === status
+                                        ? 'bg-white text-gray-900 shadow-sm'
+                                        : 'text-gray-500 hover:text-gray-700'
+                                        }`}
+                                >
+                                    {status === 'All' ? 'Todos' :
+                                        status === 'Paid' ? 'Pagados' :
+                                            status === 'Escrow' ? 'Escrow' : 'Pendientes'}
+                                </button>
+                            ))}
+                        </div>
+
+                        {/* Date Picker */}
+                        <div className="relative" ref={dateRef}>
+                            <button
+                                onClick={() => setIsDateOpen(!isDateOpen)}
+                                className="flex items-center gap-2 text-sm font-medium text-gray-600 hover:text-gray-900"
+                            >
+                                <span className="material-symbols-outlined text-lg">calendar_today</span>
+                                <span>{dateRange.label === 'Personalizado' ? `${dateRange.start} - ${dateRange.end}` : dateRange.label}</span>
+                                <span className="material-symbols-outlined text-lg">expand_more</span>
+                            </button>
+
+                            {isDateOpen && (
+                                <div className="absolute top-full right-0 mt-2 w-72 bg-white rounded-xl shadow-xl border border-gray-100 p-2 z-50">
+                                    {['Hoy', 'Últimos 7 días', 'Este Mes', 'Mes Pasado', 'Todos'].map(preset => (
+                                        <button
+                                            key={preset}
+                                            onClick={() => applyPreset(preset)}
+                                            className={`w-full text-left px-3 py-2 rounded-lg text-xs font-medium ${dateRange.label === preset ? 'bg-gray-50 text-gray-900' : 'text-gray-500 hover:bg-gray-50'}`}
+                                        >
+                                            {preset}
+                                        </button>
+                                    ))}
+                                </div>
+                            )}
+                        </div>
+                    </div>
+
+                    {/* Table */}
+                    <div className="overflow-hidden">
+                        <table className="w-full text-left">
+                            <thead className="border-b border-gray-100">
+                                <tr>
+                                    <th className="px-4 py-3 text-[10px] font-bold text-gray-400 uppercase tracking-wider">Ref</th>
+                                    <th className="px-4 py-3 text-[10px] font-bold text-gray-400 uppercase tracking-wider">Proyecto</th>
+                                    <th className="px-4 py-3 text-[10px] font-bold text-gray-400 uppercase tracking-wider">Fecha</th>
+                                    <th className="px-4 py-3 text-[10px] font-bold text-gray-400 uppercase tracking-wider">Monto</th>
+                                    <th className="px-4 py-3 text-[10px] font-bold text-gray-400 uppercase tracking-wider">Estado</th>
+                                    <th className="px-4 py-3 text-[10px] font-bold text-gray-400 uppercase tracking-wider text-right"></th>
+                                </tr>
+                            </thead>
+                            <tbody className="divide-y divide-gray-50">
+                                {loading ? (
+                                    <tr><td colSpan={6} className="px-4 py-8 text-center text-gray-400 text-sm">Cargando...</td></tr>
+                                ) : filteredItems.length === 0 ? (
+                                    <tr><td colSpan={6} className="px-4 py-8 text-center text-gray-400 text-sm">Sin movimientos</td></tr>
+                                ) : (
+                                    filteredItems.map((item) => (
+                                        <tr key={item.id} className="group hover:bg-gray-50/50 transition-colors">
+                                            <td className="px-4 py-3 text-xs text-gray-400 font-mono">{item.reference}</td>
+                                            <td className="px-4 py-3">
+                                                <p className="text-sm font-medium text-gray-900">{item.project}</p>
+                                                <p className="text-[10px] text-gray-400">{item.client}</p>
+                                            </td>
+                                            <td className="px-4 py-3 text-xs text-gray-500">
+                                                {new Date(item.date).toLocaleDateString()}
+                                            </td>
+                                            <td className={`px-4 py-3 text-sm font-semibold ${item.isDebit ? 'text-gray-900' : 'text-gray-900'}`}>
+                                                {item.isDebit ? '-' : ''}{currencyFormatter.format(item.amount)}
+                                            </td>
+                                            <td className="px-4 py-3">
+                                                <StatusBadge status={item.status} originalStatus={item.originalStatus} />
+                                            </td>
+                                            <td className="px-4 py-3 text-right">
+                                                {item.status === 'Pendiente' && !item.isDebit && item.originalStatus !== 'PENDING' && (
+                                                    <button className="text-xs font-medium text-gray-900 underline decoration-gray-300 hover:decoration-gray-900">Solicitar</button>
+                                                )}
+                                                {item.status === 'Pagado' && (
+                                                    <button className="text-gray-300 hover:text-gray-900 transition-colors">
+                                                        <span className="material-symbols-outlined text-lg">download</span>
+                                                    </button>
+                                                )}
+                                            </td>
+                                        </tr>
+                                    ))
+                                )}
+                            </tbody>
+                        </table>
+                    </div>
                 </div>
             </div>
-
-            <div className="bg-white rounded-xl border border-gray-200 overflow-hidden shadow-sm">
-                <table className="w-full text-left">
-                    <thead className="bg-gray-50 border-b border-gray-200">
-                        <tr>
-                            <th className="px-6 py-4 text-xs font-bold text-gray-500 uppercase">ID / Referencia</th>
-                            <th className="px-6 py-4 text-xs font-bold text-gray-500 uppercase">Proyecto</th>
-                            <th className="px-6 py-4 text-xs font-bold text-gray-500 uppercase">Fecha</th>
-                            <th className="px-6 py-4 text-xs font-bold text-gray-500 uppercase">Monto</th>
-                            <th className="px-6 py-4 text-xs font-bold text-gray-500 uppercase">Estado</th>
-                            <th className="px-6 py-4 text-xs font-bold text-gray-500 uppercase text-right">Acción</th>
-                        </tr>
-                    </thead>
-                    <tbody className="divide-y divide-gray-100">
-                        <tr className="hover:bg-gray-50 transition-colors">
-                            <td className="px-6 py-4 font-mono text-xs text-gray-500">#INV-24-003</td>
-                            <td className="px-6 py-4">
-                                <p className="font-bold text-gray-900">Chatbot Banca - Hito 2</p>
-                                <p className="text-xs text-gray-500">Cliente Corp</p>
-                            </td>
-                            <td className="px-6 py-4 text-sm text-gray-600">15 Oct 2024</td>
-                            <td className="px-6 py-4 font-bold text-gray-900">$5,000</td>
-                            <td className="px-6 py-4">
-                                <span className="px-2 py-1 bg-amber-100 text-amber-800 text-xs font-bold rounded-full flex items-center w-fit gap-1">
-                                    <span className="material-symbols-outlined text-[10px]">hourglass_top</span> Pendiente
-                                </span>
-                            </td>
-                            <td className="px-6 py-4 text-right">
-                                <button className="text-primary hover:underline text-xs font-bold">Solicitar Liberación</button>
-                            </td>
-                        </tr>
-                        <tr className="hover:bg-gray-50 transition-colors">
-                            <td className="px-6 py-4 font-mono text-xs text-gray-500">#INV-24-002</td>
-                            <td className="px-6 py-4">
-                                <p className="font-bold text-gray-900">Motor Recomendación - Hito 1</p>
-                                <p className="text-xs text-gray-500">Logistics Pro</p>
-                            </td>
-                            <td className="px-6 py-4 text-sm text-gray-600">01 Oct 2024</td>
-                            <td className="px-6 py-4 font-bold text-gray-900">$10,000</td>
-                            <td className="px-6 py-4">
-                                <span className="px-2 py-1 bg-blue-100 text-blue-800 text-xs font-bold rounded-full flex items-center w-fit gap-1">
-                                    <span className="material-symbols-outlined text-[10px]">lock</span> En Escrow
-                                </span>
-                            </td>
-                            <td className="px-6 py-4 text-right">
-                                <button className="text-gray-400 hover:text-dark"><span className="material-symbols-outlined text-lg">visibility</span></button>
-                            </td>
-                        </tr>
-                        <tr className="hover:bg-gray-50 transition-colors">
-                            <td className="px-6 py-4 font-mono text-xs text-gray-500">#INV-24-001</td>
-                            <td className="px-6 py-4">
-                                <p className="font-bold text-gray-900">Consultoría AI - Inicial</p>
-                                <p className="text-xs text-gray-500">Retail Corp</p>
-                            </td>
-                            <td className="px-6 py-4 text-sm text-gray-600">15 Sep 2024</td>
-                            <td className="px-6 py-4 font-bold text-gray-900">$2,500</td>
-                            <td className="px-6 py-4">
-                                <span className="px-2 py-1 bg-green-100 text-green-800 text-xs font-bold rounded-full flex items-center w-fit gap-1">
-                                    <span className="material-symbols-outlined text-[10px]">check_circle</span> Pagado
-                                </span>
-                            </td>
-                            <td className="px-6 py-4 text-right">
-                                <button className="text-gray-400 hover:text-green-600"><span className="material-symbols-outlined text-lg">download</span></button>
-                            </td>
-                        </tr>
-                    </tbody>
-                </table>
-            </div>
-         </div>
-      </div>
-    </VendorLayout>
-  );
+        </VendorLayout>
+    );
 };
+
+const StatusBadge = ({ status, originalStatus }: { status: string, originalStatus?: string }) => {
+    let styles = 'bg-gray-100 text-gray-500';
+    let dot = 'bg-gray-400';
+    let label = status;
+
+    switch (status) {
+        case 'Pagado':
+            styles = 'bg-gray-100 text-gray-700';
+            dot = 'bg-green-500';
+            break;
+        case 'Aprobado':
+            styles = 'bg-blue-50 text-blue-700';
+            dot = 'bg-blue-500';
+            break;
+        case 'En Escrow':
+            styles = 'bg-blue-50 text-blue-700';
+            dot = 'bg-blue-500';
+            break;
+        case 'En Garantía':
+            styles = 'bg-purple-50 text-purple-700';
+            dot = 'bg-purple-500';
+            break;
+        case 'Pendiente':
+            // Logic to differentiate
+            if (originalStatus === 'PENDING') {
+                label = 'Por Iniciar';
+                styles = 'bg-gray-50 text-gray-400';
+                dot = 'bg-gray-300';
+            } else {
+                // Payment Requested PENDING
+                label = 'Solicitado';
+                styles = 'bg-amber-50 text-amber-700';
+                dot = 'bg-amber-500';
+            }
+            break;
+        case 'Rechazado':
+            styles = 'bg-red-50 text-red-600';
+            dot = 'bg-red-500';
+            break;
+    }
+
+    return (
+        <span className={`px-2 py-0.5 text-[10px] font-medium rounded-full flex items-center w-fit gap-1.5 ${styles}`}>
+            <span className={`w-1 h-1 rounded-full ${dot}`}></span>
+            {label}
+        </span>
+    );
+}
 
 export default VendorFinance;

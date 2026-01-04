@@ -29,9 +29,10 @@ const ClientSettings: React.FC = () => {
       try {
          await api.patch('/auth/me', { simulationMode: newValue });
          showToast(newValue ? 'Modo Simulación activado' : 'Modo Simulación desactivado', 'success');
-      } catch (error) {
+      } catch (error: any) {
          setSimulationMode(!newValue); // Revert
-         showToast('Error al actualizar configuración', 'error');
+         const msg = error.response?.data?.message || 'Error al actualizar configuración';
+         showToast(msg, 'error');
       }
    };
    const inputClass = "w-full px-4 py-3 rounded-xl border border-gray-200 bg-white text-gray-900 focus:ring-2 focus:ring-primary focus:border-transparent outline-none transition-all placeholder:text-gray-400";
