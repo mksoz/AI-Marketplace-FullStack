@@ -141,6 +141,57 @@ model VendorProfile {
   account        VendorAccount?
 }
 
+model GitHubSync {
+  id        String   @id @default(uuid())
+  projectId String   @unique
+  project   Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  
+  // Repository Info
+  repoUrl       String  // Full GitHub URL
+  repoOwner     String  // e.g., "octocat"
+  repoName      String  // e.g., "Hello-World"
+  repoBranch    String  @default("main")
+  
+  // Sync Status
+  lastSyncAt    DateTime?
+  syncStatus    String   @default("ACTIVE") // ACTIVE, ERROR, DISCONNECTED
+  syncError     String?
+  
+  // GitHub Metadata
+  repoStars     Int      @default(0)
+  repoForks     Int      @default(0)
+  repoLanguage  String?
+  repoOpenIssues Int     @default(0)
+  
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  
+  commits GitHubCommit[]
+}
+
+model GitHubCommit {
+  id          String   @id @default(uuid())
+  syncId      String
+  sync        GitHubSync @relation(fields: [syncId], references: [id], onDelete: Cascade)
+  
+  // Commit Data
+  sha         String   @unique
+  message     String   @db.Text
+  author      String
+  authorEmail String?
+  authorAvatar String?
+  committedAt DateTime
+  
+  // Diff Stats
+  additions   Int      @default(0)
+  deletions   Int      @default(0)
+  changedFiles Int     @default(0)
+  
+  createdAt   DateTime @default(now())
+  
+  @@index([syncId, committedAt(sort: Desc)])
+}
+
 model RequirementTemplate {
   id          String        @id @default(uuid())
   vendorId    String
@@ -194,6 +245,7 @@ model Project {
   // New Relations
   incidents Incident[]
   reviews   Review[]
+  githubSync GitHubSync?
 }
 
 model ProjectFolder {

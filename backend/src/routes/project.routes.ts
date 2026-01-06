@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import { authenticateJWT, authorizeRole } from '../middlewares/auth.middleware';
 import { createProject, getMyProjects, requestProject, getVendorRequests, updateRequestStatus, setupProject, getProjectTracking } from '../controllers/project.controller';
+import { syncRepository, getRepositoryInfo, refreshCommits, unlinkRepository } from '../controllers/github.controller';
 import { UserRole } from '@prisma/client';
 
 const router = Router();
@@ -26,5 +27,11 @@ import { createIncident, updateIncident, createReview } from '../controllers/pro
 router.post('/incidents', createIncident);
 router.put('/incidents/:id', updateIncident);
 router.post('/reviews', createReview);
+
+// GitHub Repository Routes
+router.post('/:projectId/github/sync', syncRepository);
+router.get('/:projectId/github', getRepositoryInfo);
+router.post('/:projectId/github/refresh', refreshCommits);
+router.delete('/:projectId/github', unlinkRepository);
 
 export default router;

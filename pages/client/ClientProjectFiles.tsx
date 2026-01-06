@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import DeliverableFolderCard from '../../components/deliverables/DeliverableFolderCard';
 import MilestoneFolderGrid from '../../components/deliverables/MilestoneFolderGrid';
+import RepositoryView from '../../components/RepositoryView';
 
 interface ClientProjectFilesProps {
     project: any;
@@ -360,56 +361,12 @@ const ClientProjectFiles: React.FC<ClientProjectFilesProps> = ({ project, userRo
                 </div>
             )}
 
+
             {/* =======================
             REPOSITORY VIEW
            ======================= */}
             {viewMode === 'repository' && (
-                <div className="animate-in fade-in slide-in-from-bottom-4 duration-500 space-y-6">
-                    {/* Repo Health Card */}
-                    <div className="bg-gray-900 text-white rounded-2xl p-6 shadow-lg relative overflow-hidden">
-                        <div className="absolute top-0 right-0 p-8 opacity-10">
-                            <span className="material-symbols-outlined text-9xl">code</span>
-                        </div>
-                        <div className="relative z-10 flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
-                            <div>
-                                <h2 className="text-2xl font-bold font-mono tracking-tight flex items-center gap-3">
-                                    {repoStats.name}
-                                </h2>
-                                <p className="text-gray-400 text-sm mt-1">{repoStats.url || 'No vinculado'}</p>
-                            </div>
-                            <div className="text-right">
-                                {repoStats.url ? (
-                                    <a href={repoStats.url} target="_blank" rel="noopener noreferrer" className="bg-white text-gray-900 px-4 py-2 rounded-lg font-bold text-sm hover:bg-gray-100 flex items-center gap-2 transition-colors">
-                                        <span className="material-symbols-outlined text-lg">open_in_new</span>
-                                        Ver en GitHub
-                                    </a>
-                                ) : (
-                                    <span className="px-3 py-1 bg-gray-800 text-gray-400 rounded text-sm">Repositorio no configurado</span>
-                                )}
-                            </div>
-                        </div>
-                    </div>
-                    {/* Activity Stream (Mocked for now) */}
-                    <div className="bg-white border border-gray-200 rounded-xl overflow-hidden shadow-sm">
-                        <div className="bg-gray-50 px-4 py-3 border-b border-gray-200 flex justify-between items-center">
-                            <span className="text-xs font-bold text-gray-500 uppercase">Actividad Reciente (Demo)</span>
-                        </div>
-                        <div className="divide-y divide-gray-100">
-                            {recentCommits.map((commit, i) => (
-                                <div key={commit.id} className="p-4 hover:bg-gray-50 transition-colors group flex gap-4 items-start">
-                                    <div className="flex-1 min-w-0">
-                                        <p className="text-sm font-medium text-gray-900 font-mono truncate">{commit.message}</p>
-                                        <div className="flex items-center gap-2 mt-1">
-                                            <span className="text-xs text-gray-500 font-bold">{commit.author}</span>
-                                            <span className="text-xs text-gray-400">•</span>
-                                            <span className="text-xs text-gray-400">{commit.time}</span>
-                                        </div>
-                                    </div>
-                                </div>
-                            ))}
-                        </div>
-                    </div>
-                </div>
+                <RepositoryView projectId={project.id} isVendor={userRole === 'VENDOR'} />
             )}
 
             {/* =======================
@@ -463,8 +420,8 @@ const ClientProjectFiles: React.FC<ClientProjectFilesProps> = ({ project, userRo
                                     {uploadQueue.map(item => (
                                         <div key={item.id} className="flex items-center gap-3 text-sm">
                                             <span className={`material-symbols-outlined text-lg ${item.status === 'success' ? 'text-green-500' :
-                                                    item.status === 'error' ? 'text-red-500' :
-                                                        'text-primary animate-spin'
+                                                item.status === 'error' ? 'text-red-500' :
+                                                    'text-primary animate-spin'
                                                 }`}>
                                                 {item.status === 'success' ? 'check_circle' :
                                                     item.status === 'error' ? 'error' :
