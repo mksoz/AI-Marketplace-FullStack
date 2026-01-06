@@ -49,6 +49,12 @@ export const completeMilestone = async (req: Request, res: Response) => {
             }
         });
 
+        // Unlock the deliverable folder for client access
+        await prisma.deliverableFolder.updateMany({
+            where: { milestoneId: id },
+            data: { status: 'UNLOCKED', unlockedAt: new Date(), unlockedBy: user.userId }
+        });
+
         res.json({ milestone: updated });
     } catch (error) {
         console.error('Error completing milestone:', error);
@@ -334,6 +340,19 @@ export const approvePaymentRequest = async (req: Request, res: Response) => {
                 data: {
                     isPaid: true,
                     status: 'PAID'
+                }
+            });
+
+            // UNLOCK ALL DELIVERABLE FOLDERS for this milestone
+            await tx.deliverableFolder.updateMany({
+                where: {
+                    milestoneId: paymentRequest.milestoneId,
+                    status: { not: 'UNLOCKED' }
+                },
+                data: {
+                    status: 'UNLOCKED',
+                    unlockedAt: new Date(),
+                    unlockedBy: user!.userId
                 }
             });
 

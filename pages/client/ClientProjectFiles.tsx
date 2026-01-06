@@ -1,12 +1,19 @@
 import React, { useState } from 'react';
+import DeliverableFolderCard from '../../components/deliverables/DeliverableFolderCard';
+import MilestoneFolderGrid from '../../components/deliverables/MilestoneFolderGrid';
 
 interface ClientProjectFilesProps {
     project: any;
+    userRole: 'CLIENT' | 'VENDOR';
 }
 
-const ClientProjectFiles: React.FC<ClientProjectFilesProps> = ({ project }) => {
-    // View Mode: Documents (Standard) vs Repository (GitHub)
-    const [viewMode, setViewMode] = useState<'documents' | 'repository'>('documents');
+const ClientProjectFiles: React.FC<ClientProjectFilesProps> = ({ project, userRole = 'CLIENT' }) => {
+    // View Mode: Documents (Standard) vs Repository (GitHub) vs Deliverables (Protected by milestone)
+    const [viewMode, setViewMode] = useState<'documents' | 'repository' | 'deliverables'>('deliverables');
+
+    // Deliverables navigation
+    const [selectedMilestone, setSelectedMilestone] = useState<any | null>(null);
+    const [selectedFolder, setSelectedFolder] = useState<any | null>(null); // New state for specific folder
 
     // Navigation State
     const [currentFolder, setCurrentFolder] = useState<any | null>(null);
@@ -17,6 +24,16 @@ const ClientProjectFiles: React.FC<ClientProjectFilesProps> = ({ project }) => {
     const [newFolderName, setNewFolderName] = useState('');
     const [folderMenu, setFolderMenu] = useState<{ id: string, x: number, y: number } | null>(null);
     const [renamingFolder, setRenamingFolder] = useState<{ id: string, name: string } | null>(null);
+
+    // Upload State
+    const [uploadQueue, setUploadQueue] = useState<Array<{
+        id: string;
+        file: File;
+        progress: number;
+        status: 'pending' | 'uploading' | 'success' | 'error';
+        error?: string;
+    }>>([]);
+    const fileInputRef = React.useRef<HTMLInputElement>(null);
 
     // Derived Data
     // Ideally this comes from props or a fetch, for now using local copy or props
@@ -38,8 +55,91 @@ const ClientProjectFiles: React.FC<ClientProjectFilesProps> = ({ project }) => {
     const handleDrop = (e: React.DragEvent) => {
         e.preventDefault();
         setIsDragging(false);
-        console.log('Dropped file in', currentFolder?.name || 'root');
-        // Logic to upload file would go here
+        if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
+            handleFiles(e.dataTransfer.files);
+        }
+    };
+
+    const handleFiles = (files: FileList) => {
+        const newItems = Array.from(files).map(file => ({
+            id: Math.random().toString(36).substring(7),
+            file,
+            progress: 0,
+            status: 'pending' as const
+        }));
+
+        // Filter size limit
+        const validItems = newItems.filter(item => {
+            if (item.file.size > 10 * 1024 * 1024) {
+                alert(`Skip: ${item.file.name} (Max 10MB)`);
+                return false;
+            }
+            return true;
+        });
+
+        setUploadQueue(prev => [...prev, ...validItems]);
+    };
+
+    const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+        if (e.target.files) {
+            handleFiles(e.target.files);
+            e.target.value = ''; // Reset input
+        }
+    };
+
+    // Process upload queue
+    React.useEffect(() => {
+        if (uploadQueue.some(item => item.status === 'pending')) {
+            processUploadQueue();
+        }
+    }, [uploadQueue]);
+
+    const processUploadQueue = async () => {
+        const pendingItem = uploadQueue.find(item => item.status === 'pending');
+        if (!pendingItem) return;
+
+        // Mark as uploading
+        setUploadQueue(prev => prev.map(item =>
+            item.id === pendingItem.id ? { ...item, status: 'uploading' } : item
+        ));
+
+        const formData = new FormData();
+        formData.append('file', pendingItem.file);
+        formData.append('projectId', project.id);
+        if (currentFolder) {
+            formData.append('folderId', currentFolder.id);
+        }
+
+        try {
+            await api.post(`/files/upload`, formData, {
+                headers: { 'Content-Type': 'multipart/form-data' },
+                onUploadProgress: (progressEvent) => {
+                    const percentCompleted = Math.round((progressEvent.loaded * 100) / (progressEvent.total || 1));
+                    setUploadQueue(prev => prev.map(item =>
+                        item.id === pendingItem.id ? { ...item, progress: percentCompleted } : item
+                    ));
+                }
+            });
+
+            setUploadQueue(prev => prev.map(item =>
+                item.id === pendingItem.id ? { ...item, status: 'success', progress: 100 } : item
+            ));
+
+            // Refresh file list
+            // TODO: refresh project data from parent or refetch
+            console.log('File uploaded successfully:', pendingItem.file.name);
+
+        } catch (error: any) {
+            console.error('Upload error:', error);
+            setUploadQueue(prev => prev.map(item =>
+                item.id === pendingItem.id ? { ...item, status: 'error', error: error.message || 'Error' } : item
+            ));
+        }
+
+        // Remove from queue after delay
+        setTimeout(() => {
+            setUploadQueue(prev => prev.filter(item => item.id !== pendingItem.id));
+        }, 3000);
     };
 
     const handleCreateFolder = () => {
@@ -133,6 +233,12 @@ const ClientProjectFiles: React.FC<ClientProjectFilesProps> = ({ project }) => {
                 {/* View Mode Toggle */}
                 <div className="bg-gray-100 p-1 rounded-xl flex items-center">
                     <button
+                        onClick={() => setViewMode('deliverables')}
+                        className={`px-4 py-2 rounded-lg text-sm font-bold flex items-center gap-2 transition-all ${viewMode === 'deliverables' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}
+                    >
+                        <span className="material-symbols-outlined text-lg">folder_special</span> Entregables
+                    </button>
+                    <button
                         onClick={() => setViewMode('documents')}
                         className={`px-4 py-2 rounded-lg text-sm font-bold flex items-center gap-2 transition-all ${viewMode === 'documents' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}
                     >
@@ -147,6 +253,112 @@ const ClientProjectFiles: React.FC<ClientProjectFilesProps> = ({ project }) => {
                     </button>
                 </div>
             </div>
+
+            {/* =======================
+            DELIVERABLES VIEW (Protected by Milestone)
+           ======================= */}
+            {viewMode === 'deliverables' && (
+                <div className="animate-in fade-in slide-in-from-bottom-4 duration-500 space-y-6">
+                    {/* Breadcrumb Navigation - Enhanced */}
+                    {(selectedMilestone || selectedFolder) && (
+                        <div className="flex items-center gap-2 text-sm">
+                            <button
+                                onClick={() => {
+                                    setSelectedMilestone(null);
+                                    setSelectedFolder(null); // Clear folder too
+                                }}
+                                className="flex items-center gap-1 text-gray-500 hover:text-primary transition-colors"
+                            >
+                                <span className="material-symbols-outlined text-lg">folder_special</span>
+                                <span className="font-medium">Entregables</span>
+                            </button>
+                            {selectedMilestone && (
+                                <>
+                                    <span className="material-symbols-outlined text-gray-400 text-sm">chevron_right</span>
+                                    <span className="font-bold text-gray-900">
+                                        Hito {selectedMilestone.order}: {selectedMilestone.title}
+                                    </span>
+                                </>
+                            )}
+                            {selectedFolder && (
+                                <>
+                                    <span className="material-symbols-outlined text-gray-400 text-sm">chevron_right</span>
+                                    <span className="font-bold text-gray-900">{selectedFolder.name}</span>
+                                </>
+                            )}
+                        </div>
+                    )}
+
+                    {/* Grid View - All Milestones/Folders */}
+                    {!selectedFolder && (
+                        <>
+                            {/* Info Banner */}
+                            <div className="bg-gradient-to-r from-blue-50 to-purple-50 border border-blue-200 rounded-xl p-4">
+                                <div className="flex items-start gap-3">
+                                    <span className="material-symbols-outlined text-blue-600 text-2xl">info</span>
+                                    <div>
+                                        <h4 className="font-bold text-gray-900 mb-1">Entregables Protegidos por Hito</h4>
+                                        <p className="text-sm text-gray-700">
+                                            Los archivos están organizados por hito y se desbloquean automáticamente cuando el cliente aprueba el pago.
+                                            {userRole === 'VENDOR' && ' Gestiona múltiples carpetas por hito para organizar mejor tus entregas.'}
+                                            {userRole === 'CLIENT' && ' Las carpetas se desbloquearán tras aprobar cada pago.'}
+                                        </p>
+                                    </div>
+                                </div>
+                            </div>
+
+                            {/* Folder Grid */}
+                            {project.milestones && project.milestones.length > 0 ? (
+                                <div>
+                                    <MilestoneFolderGrid
+                                        milestones={project.milestones}
+                                        projectId={project.id}
+                                        isVendor={userRole === 'VENDOR'}
+                                        onSelectFolder={(folder, milestone) => {
+                                            setSelectedFolder(folder);
+                                            setSelectedMilestone(milestone);
+                                        }}
+                                    />
+                                </div>
+                            ) : (
+                                <div className="bg-white rounded-xl border border-gray-200 p-12 text-center">
+                                    <span className="material-symbols-outlined text-6xl text-gray-300 block mb-4">
+                                        flag
+                                    </span>
+                                    <h3 className="text-lg font-bold text-gray-900 mb-2">No hay hitos en este proyecto</h3>
+                                    <p className="text-gray-500">Los entregables se organizarán por hito una vez que se cree el roadmap.</p>
+                                </div>
+                            )}
+                        </>
+                    )}
+
+                    {/* Detail View - Selected Folder */}
+                    {selectedFolder && selectedMilestone && (
+                        <div>
+                            {/* Back Button */}
+                            <button
+                                onClick={() => {
+                                    setSelectedFolder(null);
+                                    setSelectedMilestone(null);
+                                }}
+                                className="mb-4 p-2 bg-white border border-gray-200 rounded-lg hover:bg-gray-50 hover:border-gray-300 transition-all group"
+                                title="Volver a los entregables"
+                            >
+                                <span className="material-symbols-outlined text-xl text-gray-600 group-hover:text-primary transition-colors">arrow_back</span>
+                            </button>
+
+                            {/* Folder Card */}
+                            <DeliverableFolderCard
+                                milestoneId={selectedMilestone.id}
+                                milestoneTitle={selectedMilestone.title}
+                                projectId={project.id}
+                                isVendor={userRole === 'VENDOR'}
+                                folderId={selectedFolder.id}
+                            />
+                        </div>
+                    )}
+                </div>
+            )}
 
             {/* =======================
             REPOSITORY VIEW
@@ -205,26 +417,76 @@ const ClientProjectFiles: React.FC<ClientProjectFilesProps> = ({ project }) => {
            ======================= */}
             {viewMode === 'documents' && (
                 <div
-                    className={`bg-white rounded-2xl border-2 border-dashed transition-all duration-300 relative ${isDragging ? 'border-primary bg-blue-50 scale-[1.01]' : 'border-gray-200 hover:border-gray-300'}`}
-                    onDragOver={handleDragOver}
-                    onDragLeave={handleDragLeave}
-                    onDrop={handleDrop}
+                    className={`bg-white rounded-2xl border-2 transition-all duration-300 relative ${isDragging ? 'border-primary bg-primary/5' : 'border-gray-200 hover:border-gray-300'}`}
                 >
-                    {isDragging && (
-                        <div className="absolute inset-0 flex items-center justify-center bg-white/80 backdrop-blur-sm z-50 rounded-2xl">
-                            <div className="text-center animate-bounce">
-                                <span className="material-symbols-outlined text-6xl text-primary">cloud_upload</span>
-                                <h3 className="text-2xl font-bold text-gray-900 mt-4">Suelta los archivos aquí</h3>
-                            </div>
-                        </div>
-                    )}
-
                     <div className="p-6">
                         <div className="flex justify-between items-center mb-4">
                             <h3 className="font-bold text-gray-700">Carpetas</h3>
                             <button onClick={() => setShowNewFolderModal(true)} className="text-primary hover:bg-primary/5 px-3 py-1.5 rounded-lg text-sm font-bold flex items-center gap-2 transition-colors">
                                 <span className="material-symbols-outlined text-lg">create_new_folder</span> Nueva Carpeta
                             </button>
+                        </div>
+
+                        {/* Upload Zone with Click to Upload */}
+                        <div
+                            onDragOver={handleDragOver}
+                            onDragLeave={handleDragLeave}
+                            onDrop={handleDrop}
+                            onClick={() => fileInputRef.current?.click()}
+                            className={`mb-6 border-2 border-dashed rounded-xl p-6 cursor-pointer transition-all ${isDragging ? 'border-primary bg-primary/10 scale-[1.02]' : 'border-gray-300 hover:border-primary hover:bg-gray-50'
+                                }`}
+                        >
+                            <input
+                                ref={fileInputRef}
+                                type="file"
+                                multiple
+                                className="hidden"
+                                onChange={handleFileSelect}
+                            />
+
+                            {/* Default State */}
+                            {uploadQueue.length === 0 && (
+                                <div className="flex items-center justify-center gap-4">
+                                    <div className="w-12 h-12 rounded-full bg-blue-50 flex items-center justify-center">
+                                        <span className="material-symbols-outlined text-primary text-2xl">cloud_upload</span>
+                                    </div>
+                                    <div className="text-sm">
+                                        <span className="font-bold text-gray-900 block">Click para subir o arrastra archivos aquí</span>
+                                        <span className="text-gray-500">Máximo 10MB por archivo</span>
+                                    </div>
+                                </div>
+                            )}
+
+                            {/* Upload Queue Progress */}
+                            {uploadQueue.length > 0 && (
+                                <div className="space-y-2">
+                                    {uploadQueue.map(item => (
+                                        <div key={item.id} className="flex items-center gap-3 text-sm">
+                                            <span className={`material-symbols-outlined text-lg ${item.status === 'success' ? 'text-green-500' :
+                                                    item.status === 'error' ? 'text-red-500' :
+                                                        'text-primary animate-spin'
+                                                }`}>
+                                                {item.status === 'success' ? 'check_circle' :
+                                                    item.status === 'error' ? 'error' :
+                                                        'progress_activity'}
+                                            </span>
+                                            <div className="flex-1">
+                                                <div className="flex justify-between mb-1">
+                                                    <span className="font-medium text-gray-700 truncate max-w-[200px]">{item.file.name}</span>
+                                                    <span className="text-xs text-gray-500">{item.progress}%</span>
+                                                </div>
+                                                <div className="h-1.5 bg-gray-100 rounded-full overflow-hidden">
+                                                    <div
+                                                        className={`h-full transition-all duration-300 ${item.status === 'error' ? 'bg-red-500' : 'bg-primary'
+                                                            }`}
+                                                        style={{ width: `${item.progress}%` }}
+                                                    />
+                                                </div>
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
+                            )}
                         </div>
 
                         {/* Folders List */}

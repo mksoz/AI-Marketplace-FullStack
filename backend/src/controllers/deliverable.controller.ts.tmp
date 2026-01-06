@@ -1,0 +1,297 @@
+import { Request, Response } from 'express';
+import { PrismaClient } from '@prisma/client';
+import path from 'path';
+import {
+    generateThumbnail,
+    getFileUrl,
+    getThumbnailUrl,
+    isImageMimeType,
+    deleteFile,
+    deleteThumbnail
+} from '../services/file-upload.service';
+const prisma = new PrismaClient();
+const UPLOAD_DIR = path.join(__dirname, '../../uploads');
+// Get deliverable folder for milestone
+export const getMilestoneDeliverables = async (req: Request, res: Response) => {
+    try {
+        const { milestoneId } = req.params;
+        const userId = req.user!.userId;
+        const milestone = await prisma.milestone.findUnique({
+            where: { id: milestoneId },
+            include: {
+                project: {
+                    include: {
+                        client: true,
+                        vendor: true
+                    }
+                },
+        });
+        if (!milestone) {
+            return res.status(404).json({ message: 'Milestone not found' });
+        }
+        const isVendor = milestone.project.vendor?.userId === userId;
+        const isClient = milestone.project.client.userId === userId;
+        if (!isVendor && !isClient) {
+            return res.status(403).json({ message: 'Unauthorized' });
+        }
+        let folder = milestone.deliverableFolder;
+        // Create folder if doesn't exist
+        if (!folder) {
+            folder = await prisma.deliverableFolder.create({
+                data: { milestoneId },
+                include: { files: true }
+            });
+        }
+        // Vendor always has full access
+        if (isVendor) {
+            const filesWithUrls = folder.files.map(f => ({
+                ...f,
+                fileSize: Number(f.fileSize),
+                downloadUrl: getFileUrl(f.storagePath),
+                thumbnailUrl: f.thumbnailPath ? getThumbnailUrl(f.thumbnailPath) : null
+            }));
+            return res.json({
+                folder: {
+                    ...folder,
+                    totalSize: Number(folder.totalSize),
+                    files: filesWithUrls
+                },
+                fullAccess: true
+            });
+        }
+        // Client: access based on status
+        if (folder.status === 'UNLOCKED') {
+            const filesWithUrls = folder.files.map(f => ({
+                ...f,
+                fileSize: Number(f.fileSize),
+                downloadUrl: getFileUrl(f.storagePath),
+                thumbnailUrl: f.thumbnailPath ? getThumbnailUrl(f.thumbnailPath) : null
+            }));
+            return res.json({
+                folder: {
+                    ...folder,
+                    totalSize: Number(folder.totalSize),
+                    files: filesWithUrls
+                },
+                fullAccess: true
+            });
+        } else {
+            // Limited view: metadata + thumbnails only
+            const limitedFiles = folder.files.map(f => ({
+                id: f.id,
+                filename: f.filename,
+                originalName: f.originalName,
+                fileSize: Number(f.fileSize),
+                mimeType: f.mimeType,
+                uploadedAt: f.uploadedAt,
+                thumbnailUrl: f.thumbnailPath ? getThumbnailUrl(f.thumbnailPath) : null,
+                previewAvailable: f.previewAvailable
+            }));
+            return res.json({
+                folder: {
+                    id: folder.id,
+                    status: folder.status,
+                    totalFiles: folder.totalFiles,
+                    totalSize: Number(folder.totalSize),
+                    files: limitedFiles
+                },
+                fullAccess: false,
+                message: 'Files will be unlocked after payment approval'
+            });
+        }
+    } catch (error: any) {
+        console.error('Error fetching deliverables:', error);
+        res.status(500).json({ message: error.message || 'Failed to fetch deliverables' });
+    }
+};
+// Upload file to deliverable folder
+export const uploadDeliverable = async (req: Request, res: Response) => {
+    try {
+        const { milestoneId } = req.params;
+        const userId = req.user!.userId;
+        const file = req.file;
+        if (!file) {
+            return res.status(400).json({ message: 'No file provided' });
+        }
+        // Verify vendor permission
+        const milestone = await prisma.milestone.findUnique({
+            where: { id: milestoneId },
+            include: {
+                project: { include: { vendor: true } }
+            }
+        });
+        if (!milestone) {
+            return res.status(404).json({ message: 'Milestone not found' });
+        }
+        if (!milestone.project.vendor || milestone.project.vendor.userId !== userId) {
+            return res.status(403).json({ message: 'Only vendor can upload deliverables' });
+        }
+        // Get or create folder
+        let folder = await prisma.deliverableFolder.findUnique({
+            where: { milestoneId }
+        });
+        if (!folder) {
+            folder = await prisma.deliverableFolder.create({
+                data: { milestoneId, status: 'IN_PROGRESS' }
+            });
+        } else if (folder.status === 'PENDING') {
+            await prisma.deliverableFolder.update({
+                where: { id: folder.id },
+                data: { status: 'IN_PROGRESS' }
+            });
+        }
+        // Calculate storage path relative to uploads directory
+        const storagePath = path.relative(UPLOAD_DIR, file.path).replace(/\\/g, '/');
+        // Generate thumbnail if image
+        const isImage = isImageMimeType(file.mimetype);
+        let thumbnailPath = null;
+        if (isImage) {
+            const thumbFilename = `thumb_${path.basename(file.filename)}`;
+            const thumbPath = path.join(path.dirname(file.path), thumbFilename);
+            const success = await generateThumbnail(file.path, thumbPath);
+            if (success) {
+                thumbnailPath = path.relative(UPLOAD_DIR, thumbPath).replace(/\\/g, '/');
+            }
+        }
+        // Save to database
+        const deliverableFile = await prisma.deliverableFile.create({
+            data: {
+                folderId: folder.id,
+                filename: file.filename,
+                originalName: file.originalname,
+                fileSize: file.size,
+                mimeType: file.mimetype,
+                storagePath,
+                thumbnailPath,
+                previewAvailable: isImage,
+                uploadedBy: userId
+            }
+        });
+        // Update folder metadata
+        await prisma.deliverableFolder.update({
+            where: { id: folder.id },
+            data: {
+                totalFiles: { increment: 1 },
+                totalSize: { increment: file.size }
+            }
+        });
+        res.json({
+            success: true,
+            file: {
+                ...deliverableFile,
+                fileSize: Number(deliverableFile.fileSize),
+                downloadUrl: getFileUrl(storagePath),
+                thumbnailUrl: thumbnailPath ? getThumbnailUrl(thumbnailPath) : null
+            }
+        });
+    } catch (error: any) {
+        console.error('Error uploading deliverable:', error);
+        res.status(500).json({ message: error.message || 'Failed to upload file' });
+    }
+};
+// Download file (with permission check)
+export const downloadFile = async (req: Request, res: Response) => {
+    try {
+        const { encodedPath } = req.params;
+        const userId = req.user!.userId;
+        const storagePath = encodedPath.replace(/__/g, '/');
+        // Find file
+        const file = await prisma.deliverableFile.findFirst({
+            where: { storagePath },
+            include: {
+                folder: {
+                    include: {
+                        milestone: {
+                            include: {
+                                project: {
+                                    include: {
+                                        client: true,
+                                        vendor: true
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        });
+        if (!file) {
+            return res.status(404).json({ message: 'File not found' });
+        }
+        const project = file.folder.milestone.project;
+        const isVendor = project.vendor?.userId === userId;
+        const isClient = project.client.userId === userId;
+        const isUnlocked = file.folder.status === 'UNLOCKED';
+        // Check permissions
+        if (!isVendor && !(isClient && isUnlocked)) {
+            return res.status(403).json({ message: 'File locked until payment approval' });
+        }
+        // Serve file
+        const filePath = path.join(UPLOAD_DIR, storagePath);
+        res.download(filePath, file.originalName);
+    } catch (error: any) {
+        console.error('Error downloading file:', error);
+        res.status(500).json({ message: error.message || 'Failed to download file' });
+    }
+};
+// Download thumbnail (always allowed for preview)
+export const downloadThumbnail = async (req: Request, res: Response) => {
+    try {
+        const { encodedPath } = req.params;
+        const thumbnailPath = encodedPath.replace(/__/g, '/');
+        const filePath = path.join(UPLOAD_DIR, thumbnailPath);
+        res.sendFile(filePath);
+    } catch (error: any) {
+        console.error('Error serving thumbnail:', error);
+        res.status(404).json({ message: 'Thumbnail not found' });
+    }
+};
+// Delete deliverable file
+export const deleteDeliverable = async (req: Request, res: Response) => {
+    try {
+        const { fileId } = req.params;
+        const userId = req.user!.userId;
+        const file = await prisma.deliverableFile.findUnique({
+            where: { id: fileId },
+            include: {
+                folder: {
+                    include: {
+                        milestone: {
+                            include: {
+                                project: { include: { vendor: true } }
+                            }
+                        }
+                    }
+                }
+            }
+        });
+        if (!file) {
+            return res.status(404).json({ message: 'File not found' });
+        }
+        // Only vendor can delete
+        if (file.folder.milestone.project.vendor?.userId !== userId) {
+            return res.status(403).json({ message: 'Only vendor can delete files' });
+        }
+        // Delete from filesystem
+        await deleteFile(file.storagePath);
+        if (file.thumbnailPath) {
+            await deleteThumbnail(file.thumbnailPath);
+        }
+        // Update folder metadata
+        await prisma.deliverableFolder.update({
+            where: { id: file.folderId },
+            data: {
+                totalFiles: { decrement: 1 },
+                totalSize: { decrement: Number(file.fileSize) }
+            }
+        });
+        // Delete from database
+        await prisma.deliverableFile.delete({
+            where: { id: fileId }
+        });
+        res.json({ success: true, message: 'File deleted successfully' });
+    } catch (error: any) {
+        console.error('Error deleting file:', error);
+        res.status(500).json({ message: error.message || 'Failed to delete file' });
+    }
+};

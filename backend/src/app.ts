@@ -3,7 +3,13 @@ import cors from 'cors';
 import helmet from 'helmet';
 import routes from './routes';
 
+// Version: Phase 1 - Client Settings
 const app: Application = express();
+
+// Global BigInt serialization fix
+(BigInt.prototype as any).toJSON = function () {
+    return Number(this);
+};
 
 // Middleware
 app.use(cors({

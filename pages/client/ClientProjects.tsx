@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import ClientLayout from '../../components/ClientLayout';
 import NewProjectModal from '../../components/NewProjectModal';
 import api from '../../services/api';
+import { calculateProjectProgress } from '../../utils/projectHelpers';
 
 const ClientProjects: React.FC = () => {
     const navigate = useNavigate();
@@ -36,6 +37,7 @@ const ClientProjects: React.FC = () => {
                         name: p.title,
                         vendor: p.vendor?.companyName || 'Pendiente de Asignación',
                         image: `https://ui-avatars.com/api/?name=${p.title}&background=0D8ABC&color=fff`,
+                        progress: calculateProjectProgress(p.milestones), // Use shared helper
                         tracking: { phase: 'En Desarrollo', nextEvent: 'Revisión Semanal', date: 'Mañana' },
                         deliverables: { current: 'Hito 2', pendingReview: p.milestones?.some((m: any) => m.status === 'COMPLETED' && !m.isPaid), nextPayment: '15 Feb' },
                         files: { count: p.files?.length || 0, lastUpload: 'Hace 2 días', time: '10:30 AM' },

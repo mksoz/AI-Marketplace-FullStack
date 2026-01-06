@@ -1,13 +1,13 @@
 import { Router } from 'express';
+import {
+    getNotificationPreferences,
+    updateNotificationPreferences
+} from '../controllers/notification.controller';
 import { authenticateJWT } from '../middlewares/auth.middleware';
-import { getNotifications, markAllAsRead, markAsRead } from '../controllers/notification.controller';
 
 const router = Router();
 
-router.use(authenticateJWT);
-
-router.get('/', getNotifications);
-router.patch('/:id/read', markAsRead);
-router.patch('/read-all', markAllAsRead);
+router.get('/preferences', authenticateJWT, getNotificationPreferences);
+router.patch('/preferences', authenticateJWT, updateNotificationPreferences);
 
 export default router;

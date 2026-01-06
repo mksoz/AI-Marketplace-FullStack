@@ -1,14 +1,57 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import VendorLayout from '../../components/VendorLayout';
+import api from '../../services/api';
+import { calculateProjectProgress } from '../../utils/projectHelpers';
 
 const VendorDashboard: React.FC = () => {
     const navigate = useNavigate();
+    const [activeProjects, setActiveProjects] = useState<any[]>([]);
+    const [stats, setStats] = useState({
+        revenue: 0,
+        proposalCount: 0,
+        profileViews: 142 // Mock for now
+    });
+    const [loading, setLoading] = useState(true);
 
-    const activeProjects = [
-        { id: '1', name: 'Motor de Recomendación', client: 'Cliente Corp', progress: 65, status: 'En Progreso', nextMilestone: 'Entrenamiento Modelo', revenue: '$10k' },
-        { id: '2', name: 'Visión Computarizada Retail', client: 'SuperMart S.A.', progress: 90, status: 'Revisión Final', nextMilestone: 'Entrega Código', revenue: '$25k' },
-    ];
+    useEffect(() => {
+        fetchDashboardData();
+    }, []);
+
+    const fetchDashboardData = async () => {
+        try {
+            setLoading(true);
+
+            // Fetch real projects
+            const projectsRes = await api.get('/projects/my-projects');
+            const inProgressProjects = projectsRes.data
+                .filter((p: any) => p.status === 'IN_PROGRESS')
+                .map((p: any) => ({
+                    id: p.id,
+                    name: p.title,
+                    client: p.client?.companyName || 'Cliente',
+                    progress: calculateProjectProgress(p.milestones),
+                    status: p.status === 'IN_PROGRESS' ? 'En Progreso' : p.status,
+                    nextMilestone: p.milestones?.find((m: any) => m.status === 'IN_PROGRESS')?.title || 'Por definir',
+                    revenue: p.milestones?.find((m: any) => m.status === 'IN_PROGRESS')?.amount
+                        ? `$${(p.milestones.find((m: any) => m.status === 'IN_PROGRESS').amount / 1000).toFixed(0)}k`
+                        : '$0'
+                }));
+
+            setActiveProjects(inProgressProjects.slice(0, 5)); // Top 5
+
+            // Calculate revenue (mock for now - would need payment data)
+            setStats(prev => ({
+                ...prev,
+                proposalCount: projectsRes.data.filter((p: any) => p.status === 'PENDING').length
+            }));
+
+        } catch (error) {
+            console.error('Error fetching dashboard data:', error);
+        } finally {
+            setLoading(false);
+        }
+    };
 
     return (
         <VendorLayout>
@@ -37,16 +80,18 @@ const VendorDashboard: React.FC = () => {
                         </div>
                     </div>
 
-                    <div onClick={() => navigate('/vendor/proposals')} className="bg-white p-6 rounded-2xl border border-gray-100 shadow-sm hover:shadow-card transition-all cursor-pointer group relative overflow-hidden">
+                    <div onClick={() => navigate('/vendor/projects')} className="bg-white p-6 rounded-2xl border border-gray-100 shadow-sm hover:shadow-card transition-all cursor-pointer group relative overflow-hidden">
                         <div className="absolute top-0 right-0 w-24 h-24 bg-blue-50 rounded-bl-full -mr-4 -mt-4 transition-transform group-hover:scale-110"></div>
                         <div className="relative z-10">
                             <div className="flex items-center gap-3 mb-2">
-                                <span className="p-2 bg-blue-50 text-blue-600 rounded-lg material-symbols-outlined">description</span>
-                                <span className="text-sm font-bold text-gray-500 uppercase tracking-wide">Propuestas Activas</span>
+                                <span className="p-2 bg-blue-50 text-blue-600 rounded-lg material-symbols-outlined">business_center</span>
+                                <span className="text-sm font-bold text-gray-500 uppercase tracking-wide">Proyectos Activos</span>
                             </div>
                             <div className="flex items-baseline gap-2">
-                                <span className="text-4xl font-black text-gray-900">5</span>
-                                <span className="text-sm font-medium text-blue-600 bg-blue-50 px-2 py-0.5 rounded-full">2 requieren atención</span>
+                                <span className="text-4xl font-black text-gray-900">{activeProjects.length}</span>
+                                {stats.proposalCount > 0 && (
+                                    <span className="text-sm font-medium text-blue-600 bg-blue-50 px-2 py-0.5 rounded-full">{stats.proposalCount} propuestas pendientes</span>
+                                )}
                             </div>
                         </div>
                     </div>
@@ -59,7 +104,7 @@ const VendorDashboard: React.FC = () => {
                                 <span className="text-sm font-bold text-gray-500 uppercase tracking-wide">Vistas del Perfil</span>
                             </div>
                             <div className="flex items-baseline gap-2">
-                                <span className="text-4xl font-black text-gray-900">142</span>
+                                <span className="text-4xl font-black text-gray-900">{stats.profileViews}</span>
                                 <span className="text-xs text-gray-400">Últimos 7 días</span>
                             </div>
                         </div>
@@ -76,47 +121,67 @@ const VendorDashboard: React.FC = () => {
                             </button>
                         </div>
 
-                        <div className="grid grid-cols-1 gap-4">
-                            {activeProjects.map(project => (
-                                <div key={project.id} onClick={() => navigate('/vendor/projects')} className="bg-white p-6 rounded-2xl border border-gray-200 hover:border-primary/30 hover:shadow-md transition-all cursor-pointer group">
-                                    <div className="flex justify-between items-start mb-4">
-                                        <div>
-                                            <h3 className="font-bold text-lg text-gray-900 group-hover:text-primary transition-colors">{project.name}</h3>
-                                            <p className="text-sm text-gray-500">Cliente: <span className="font-medium text-gray-700">{project.client}</span></p>
-                                        </div>
-                                        <div className="text-right">
-                                            <p className="font-bold text-gray-900">{project.revenue}</p>
-                                            <span className="text-xs text-gray-400">Valor Hito Actual</span>
-                                        </div>
-                                    </div>
-
-                                    <div className="mb-4">
-                                        <div className="flex justify-between text-xs font-bold text-gray-500 mb-2">
-                                            <span>Completado</span>
-                                            <span>{project.progress}%</span>
-                                        </div>
-                                        <div className="w-full bg-gray-100 rounded-full h-2.5 overflow-hidden">
-                                            <div className="bg-primary h-2.5 rounded-full" style={{ width: `${project.progress}%` }}></div>
-                                        </div>
-                                    </div>
-
-                                    <div className="flex items-center justify-between pt-4 border-t border-gray-50">
-                                        <div className="flex items-center gap-2">
-                                            <div className="p-1.5 bg-gray-50 rounded text-gray-500">
-                                                <span className="material-symbols-outlined text-sm">flag</span>
-                                            </div>
+                        {loading ? (
+                            <div className="grid grid-cols-1 gap-4">
+                                {[...Array(2)].map((_, i) => (
+                                    <div key={i} className="bg-white p-6 rounded-2xl border border-gray-200 h-40 animate-pulse"></div>
+                                ))}
+                            </div>
+                        ) : activeProjects.length > 0 ? (
+                            <div className="grid grid-cols-1 gap-4">
+                                {activeProjects.map(project => (
+                                    <div key={project.id} onClick={() => navigate('/vendor/projects')} className="bg-white p-6 rounded-2xl border border-gray-200 hover:border-primary/30 hover:shadow-md transition-all cursor-pointer group">
+                                        <div className="flex justify-between items-start mb-4">
                                             <div>
-                                                <p className="text-[10px] uppercase font-bold text-gray-400">Próxima Entrega</p>
-                                                <p className="text-sm font-bold text-gray-800">{project.nextMilestone}</p>
+                                                <h3 className="font-bold text-lg text-gray-900 group-hover:text-primary transition-colors">{project.name}</h3>
+                                                <p className="text-sm text-gray-500">Cliente: <span className="font-medium text-gray-700">{project.client}</span></p>
+                                            </div>
+                                            <div className="text-right">
+                                                <p className="font-bold text-gray-900">{project.revenue}</p>
+                                                <span className="text-xs text-gray-400">Valor Hito Actual</span>
                                             </div>
                                         </div>
-                                        <button className="text-xs font-bold bg-gray-900 text-white px-3 py-1.5 rounded-lg hover:bg-black transition-colors">
-                                            Subir Entregable
-                                        </button>
+
+                                        <div className="mb-4">
+                                            <div className="flex justify-between text-xs font-bold text-gray-500 mb-2">
+                                                <span>Completado</span>
+                                                <span>{project.progress}%</span>
+                                            </div>
+                                            <div className="w-full bg-gray-100 rounded-full h-2.5 overflow-hidden">
+                                                <div className="bg-primary h-2.5 rounded-full" style={{ width: `${project.progress}%` }}></div>
+                                            </div>
+                                        </div>
+
+                                        <div className="flex items-center justify-between pt-4 border-t border-gray-50">
+                                            <div className="flex items-center gap-2">
+                                                <div className="p-1.5 bg-gray-50 rounded text-gray-500">
+                                                    <span className="material-symbols-outlined text-sm">flag</span>
+                                                </div>
+                                                <div>
+                                                    <p className="text-[10px] uppercase font-bold text-gray-400">Próxima Entrega</p>
+                                                    <p className="text-sm font-bold text-gray-800">{project.nextMilestone}</p>
+                                                </div>
+                                            </div>
+                                            <button className="text-xs font-bold bg-gray-900 text-white px-3 py-1.5 rounded-lg hover:bg-black transition-colors">
+                                                Subir Entregable
+                                            </button>
+                                        </div>
                                     </div>
-                                </div>
-                            ))}
-                        </div>
+                                ))}
+                            </div>
+                        ) : (
+                            <div className="bg-white p-12 rounded-2xl border-2 border-dashed border-gray-200 text-center">
+                                <span className="material-symbols-outlined text-6xl text-gray-300 block mb-4">work_outline</span>
+                                <h3 className="text-lg font-bold text-gray-900 mb-2">No hay proyectos activos</h3>
+                                <p className="text-gray-500 text-sm mb-4">Acepta propuestas para comenzar a gestionar tus entregas aquí.</p>
+                                <button
+                                    onClick={() => navigate('/vendor/proposals')}
+                                    className="px-4 py-2 bg-primary text-white font-bold rounded-lg hover:bg-primary/90"
+                                >
+                                    Ver Propuestas
+                                </button>
+                            </div>
+                        )}
                     </div>
 
                     {/* Sidebar */}

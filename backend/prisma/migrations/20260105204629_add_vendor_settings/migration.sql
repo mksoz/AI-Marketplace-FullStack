@@ -1,0 +1,16 @@
+-- AlterTable
+ALTER TABLE "VendorProfile" ADD COLUMN     "aiAgentConfig" JSONB,
+ADD COLUMN     "aiAgentEnabled" BOOLEAN NOT NULL DEFAULT false,
+ADD COLUMN     "billingAddress" TEXT,
+ADD COLUMN     "city" TEXT,
+ADD COLUMN     "country" TEXT,
+ADD COLUMN     "githubUrl" TEXT,
+ADD COLUMN     "industry" TEXT,
+ADD COLUMN     "languages" TEXT[] DEFAULT ARRAY[]::TEXT[],
+ADD COLUMN     "legalName" TEXT,
+ADD COLUMN     "linkedinUrl" TEXT,
+ADD COLUMN     "logoUrl" TEXT,
+ADD COLUMN     "portfolioUrl" TEXT,
+ADD COLUMN     "taxId" TEXT,
+ADD COLUMN     "website" TEXT,
+ADD COLUMN     "yearsOfExperience" INTEGER;

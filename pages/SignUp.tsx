@@ -29,6 +29,8 @@ const SignUp: React.FC = () => {
         contactEmail: '',
         size: '',
         founded: '',
+        taxId: '', // New: Required for verification
+        billingAddress: '', // New: Required for payments
         specialties: [] as string[],
         techStack: [] as string[],
         hourlyRate: '',
@@ -200,6 +202,42 @@ const SignUp: React.FC = () => {
                                     value={vendorData.founded}
                                     onChange={(e) => setVendorData({ ...vendorData, founded: e.target.value })}
                                 />
+                            </div>
+                        </div>
+
+                        {/* Billing & Tax Information */}
+                        <div className="pt-6 border-t border-gray-200">
+                            <h4 className="text-lg font-bold text-gray-900 mb-4 flex items-center gap-2">
+                                <span className="material-symbols-outlined text-primary">receipt_long</span>
+                                Información Fiscal y de Facturación
+                            </h4>
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                <div>
+                                    <label className="block text-sm font-bold text-gray-700 mb-1.5">
+                                        NIF/CIF/Tax ID <span className="text-red-500">*</span>
+                                    </label>
+                                    <input
+                                        type="text"
+                                        placeholder="Ej. B12345678"
+                                        className="w-full px-4 py-3 rounded-xl border border-gray-300 bg-white text-gray-900 focus:ring-2 focus:ring-primary focus:border-transparent outline-none transition-all placeholder:text-gray-400"
+                                        value={vendorData.taxId}
+                                        onChange={(e) => setVendorData({ ...vendorData, taxId: e.target.value })}
+                                    />
+                                    <p className="text-xs text-gray-500 mt-1">Número de identificación fiscal de tu empresa</p>
+                                </div>
+                                <div>
+                                    <label className="block text-sm font-bold text-gray-700 mb-1.5">
+                                        Dirección Fiscal <span className="text-red-500">*</span>
+                                    </label>
+                                    <input
+                                        type="text"
+                                        placeholder="Ej. Calle Principal 123, Madrid"
+                                        className="w-full px-4 py-3 rounded-xl border border-gray-300 bg-white text-gray-900 focus:ring-2 focus:ring-primary focus:border-transparent outline-none transition-all placeholder:text-gray-400"
+                                        value={vendorData.billingAddress}
+                                        onChange={(e) => setVendorData({ ...vendorData, billingAddress: e.target.value })}
+                                    />
+                                    <p className="text-xs text-gray-500 mt-1">Dirección completa para facturación</p>
+                                </div>
                             </div>
                         </div>
                     </div>
