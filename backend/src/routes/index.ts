@@ -12,6 +12,7 @@ import profileRoutes from './profile.routes';
 import deliverableRoutes from './deliverable.routes';
 import subfolderRoutes from './subfolder.routes';
 import protectedFolderRoutes from './protected-folder.routes';
+import calendarRoutes from './calendar.routes';
 
 const router = Router();
 
@@ -28,5 +29,6 @@ router.use('/profile', profileRoutes);
 router.use('/deliverables', deliverableRoutes);
 router.use('/deliverables', subfolderRoutes);
 router.use('/protected-folders', protectedFolderRoutes);
+router.use('/calendar', calendarRoutes);
 
 export default router;

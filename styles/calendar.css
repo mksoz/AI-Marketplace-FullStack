@@ -1,0 +1,139 @@
+/* react-big-calendar custom styles */
+.rbc-calendar {
+  min-height: 600px;
+  height: 100%;
+}
+
+.rbc-month-view {
+  border: none;
+  background: white;
+}
+
+.rbc-header {
+  padding: 12px 4px;
+  font-weight: 700;
+  font-size: 0.875rem;
+  text-transform: uppercase;
+  color: #374151;
+  border-bottom: 2px solid #e5e7eb;
+}
+
+.rbc-month-row {
+  border: none;
+  min-height: 100px;
+}
+
+.rbc-day-bg {
+  border: 1px solid #f3f4f6;
+}
+
+.rbc-day-bg.rbc-today {
+  background-color: #eff6ff;
+}
+
+.rbc-off-range-bg {
+  background-color: #f9fafb;
+}
+
+.rbc-date-cell {
+  padding: 8px;
+  text-align: right;
+}
+
+.rbc-date-cell>a {
+  color: #111827;
+  font-weight: 600;
+}
+
+.rbc-off-range .rbc-date-cell>a {
+  color: #9ca3af;
+}
+
+.rbc-today .rbc-date-cell>a {
+  color: #2563eb;
+  font-weight: 700;
+}
+
+.rbc-event {
+  padding: 2px 6px;
+  border-radius: 6px;
+  font-size: 0.875rem;
+  font-weight: 600;
+  border: none;
+  cursor: pointer;
+}
+
+.rbc-event:hover {
+  opacity: 0.9;
+}
+
+.rbc-event-label {
+  font-size: 0.75rem;
+}
+
+.rbc-toolbar {
+  display: none;
+  /* We're using custom toolbar */
+}
+
+.rbc-time-view {
+  border: none;
+}
+
+.rbc-time-header-content {
+  border-left: none;
+}
+
+.rbc-time-content {
+  border-top: 2px solid #e5e7eb;
+}
+
+.rbc-current-time-indicator {
+  background-color: #ef4444;
+  height: 2px;
+}
+
+.rbc-agenda-view {
+  padding: 1rem;
+}
+
+.rbc-agenda-table {
+  border: none;
+}
+
+.rbc-agenda-date-cell,
+.rbc-agenda-time-cell {
+  padding: 12px;
+  font-weight: 600;
+  color: #374151;
+}
+
+.rbc-agenda-event-cell {
+  padding: 12px;
+}
+
+.rbc-show-more {
+  background-color: transparent;
+  color: #2563eb;
+  font-weight: 600;
+  font-size: 0.75rem;
+  padding: 2px 4px;
+  margin: 2px 0;
+}
+
+.rbc-show-more:hover {
+  text-decoration: underline;
+}
+
+/* Hide native calendar/clock icons from datetime inputs */
+input[type="datetime-local"]::-webkit-calendar-picker-indicator,
+input[type="date"]::-webkit-calendar-picker-indicator,
+input[type="time"]::-webkit-calendar-picker-indicator {
+  display: none;
+  -webkit-appearance: none;
+}
+
+input[type="datetime-local"]::-webkit-datetime-edit-fields-wrapper,
+input[type="date"]::-webkit-datetime-edit-fields-wrapper {
+  padding: 0;
+}

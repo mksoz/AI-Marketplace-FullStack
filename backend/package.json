@@ -27,8 +27,10 @@
     "dotenv": "^17.2.3",
     "express": "^5.2.1",
     "helmet": "^8.1.0",
+    "ical-generator": "^10.0.0",
     "jsonwebtoken": "^9.0.3",
     "multer": "^2.0.2",
+    "node-ical": "^0.22.1",
     "sharp": "^0.34.5",
     "uuid": "^13.0.0"
   },

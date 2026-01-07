@@ -63,6 +63,11 @@ model User {
   paymentMethods    PaymentMethod[]
   sessions          Session[]
   auditLogs         AuditLog[]
+  
+  // Calendar Relations
+  createdEvents     CalendarEvent[] @relation("EventCreator")
+  attendingEvents   EventAttendee[]
+  reminders         EventReminder[]
 }
 
 model ClientProfile {
@@ -88,6 +93,7 @@ model ClientProfile {
   projects     Project[]
   savedVendors SavedVendor[]
   account      ClientAccount?
+  calendarEvents CalendarEvent[] @relation("ClientEvents")
 }
 
 enum MilestoneStatus {
@@ -95,6 +101,27 @@ enum MilestoneStatus {
   IN_PROGRESS
   COMPLETED
   PAID
+}
+
+enum EventType {
+  MILESTONE
+  MEETING
+  DEADLINE
+  CUSTOM
+}
+
+enum EventStatus {
+  PENDING
+  CONFIRMED
+  CANCELLED
+  COMPLETED
+}
+
+enum AttendeeStatus {
+  NO_RESPONSE
+  ACCEPTED
+  DECLINED
+  TENTATIVE
 }
 
 model VendorProfile {
@@ -139,6 +166,7 @@ model VendorProfile {
   projects       Project[]      @relation("VendorProjects")
   savedByClients SavedVendor[]
   account        VendorAccount?
+  calendarEvents CalendarEvent[] @relation("VendorEvents")
 }
 
 model GitHubSync {
@@ -190,6 +218,90 @@ model GitHubCommit {
   createdAt   DateTime @default(now())
   
   @@index([syncId, committedAt(sort: Desc)])
+}
+
+model CalendarEvent {
+  id          String      @id @default(uuid())
+  
+  // Basic Info
+  title       String
+  description String?     @db.Text
+  type        EventType
+  status      EventStatus @default(PENDING)
+  
+  // Timing
+  startDate   DateTime
+  endDate     DateTime
+  isAllDay    Boolean     @default(false)
+  timezone    String      @default("Europe/Madrid")
+  
+  // Recurrence (JSON for flexibility)
+  recurrence  Json?       // { type: 'daily'|'weekly'|'monthly', interval: 1, endDate: '...' }
+  
+  // Relations
+  projectId   String?
+  project     Project?    @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  
+  createdById String
+  createdBy   User        @relation("EventCreator", fields: [createdById], references: [id])
+  
+  // Participants (for approval workflow)
+  vendorId    String?
+  vendor      VendorProfile? @relation("VendorEvents", fields: [vendorId], references: [id])
+  clientId    String?
+  client      ClientProfile? @relation("ClientEvents", fields: [clientId], references: [id])
+  
+  // Meeting Details
+  meetingLink String?     // Google Meet, Teams, Zoom
+  location    String?
+  
+  // Proposed Date (when someone proposes alternative)
+  proposedStartDate DateTime?
+  proposedEndDate   DateTime?
+  proposedBy        String?   // userId who proposed
+  proposalComment   String?   @db.Text
+  
+  // Metadata
+  color       String?     // Hex color for display
+  
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
+  
+  attendees   EventAttendee[]
+  reminders   EventReminder[]
+}
+
+model EventAttendee {
+  id        String         @id @default(uuid())
+  eventId   String
+  event     CalendarEvent  @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  
+  userId    String
+  user      User           @relation(fields: [userId], references: [id])
+  
+  status    AttendeeStatus @default(NO_RESPONSE)
+  comment   String?        // Decline reason, notes
+  
+  createdAt DateTime       @default(now())
+  updatedAt DateTime       @updatedAt
+  
+  @@unique([eventId, userId])
+}
+
+model EventReminder {
+  id        String        @id @default(uuid())
+  eventId   String
+  event     CalendarEvent @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  
+  userId    String
+  user      User          @relation(fields: [userId], references: [id])
+  
+  minutesBefore Int        // 15, 30, 60, 1440 (1 day), etc.
+  sent      Boolean       @default(false)
+  
+  createdAt DateTime      @default(now())
+  
+  @@unique([eventId, userId, minutesBefore])
 }
 
 model RequirementTemplate {
@@ -246,6 +358,7 @@ model Project {
   incidents Incident[]
   reviews   Review[]
   githubSync GitHubSync?
+  events    CalendarEvent[]
 }
 
 model ProjectFolder {
