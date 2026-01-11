@@ -2,6 +2,9 @@ import React, { useState, useEffect } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import Header from './Header';
 import FAQWidget from './FAQWidget';
+import NotificationBadge from './notifications/NotificationBadge';
+import { useUnreadCount } from '../hooks/useUnreadCount';
+import { useUnreadMessagesCount } from '../hooks/useUnreadMessagesCount';
 
 interface ClientLayoutProps {
   children: React.ReactNode;
@@ -12,6 +15,8 @@ interface ClientLayoutProps {
 const ClientLayout: React.FC<ClientLayoutProps> = ({ children, fullHeight = false }) => {
   const location = useLocation();
   const navigate = useNavigate();
+  const { count: unreadCount } = useUnreadCount();
+  const { count: unreadMessagesCount } = useUnreadMessagesCount();
 
   // State for Sidebar Visibility
   const [isSidebarOpen, setIsSidebarOpen] = useState(() => window.innerWidth >= 768);
@@ -235,21 +240,32 @@ const ClientLayout: React.FC<ClientLayoutProps> = ({ children, fullHeight = fals
                                 `}
                       >
                         <div className="flex items-center gap-3">
-                          <span className={`material-symbols-outlined text-[20px] ${isItemActive ? 'filled' : ''}`}>{item.icon}</span>
+                          <div className="relative">
+                            <span
+                              className={`material-symbols-outlined text-[20px] ${isItemActive ? 'filled' : ''} ${item.path === '/client/notifications' && unreadCount > 0
+                                ? 'animate-pulse text-red-500'
+                                : ''
+                                }`}
+                            >
+                              {item.icon}
+                            </span>
+                          </div>
                           {item.label}
                         </div>
                       </Link>
 
-                      {hasSubsections && (
-                        <button
-                          onClick={(e) => toggleMenu(item.path!, e)}
-                          className="p-2 mr-1 text-gray-400 hover:text-gray-600 rounded-md hover:bg-gray-100"
-                        >
-                          <span className="material-symbols-outlined text-[18px]">
-                            {isExpanded ? 'expand_less' : 'expand_more'}
-                          </span>
-                        </button>
-                      )}
+                      {
+                        hasSubsections && (
+                          <button
+                            onClick={(e) => toggleMenu(item.path!, e)}
+                            className="p-2 mr-1 text-gray-400 hover:text-gray-600 rounded-md hover:bg-gray-100"
+                          >
+                            <span className="material-symbols-outlined text-[18px]">
+                              {isExpanded ? 'expand_less' : 'expand_more'}
+                            </span>
+                          </button>
+                        )
+                      }
                     </div>
 
                     {hasSubsections && (
@@ -292,17 +308,17 @@ const ClientLayout: React.FC<ClientLayoutProps> = ({ children, fullHeight = fals
                 </button>
               </div>
             </nav>
-          </div>
-        </aside>
+          </div >
+        </aside >
 
         {/* Main Content Area */}
-        <main className={`flex-1 flex flex-col min-w-0 transition-all duration-300`}>
+        < main className={`flex-1 flex flex-col min-w-0 transition-all duration-300`}>
 
           {/* Sticky Breadcrumbs Bar */}
-          <div className="bg-white border-b border-gray-200 px-6 py-3 flex items-center shadow-sm shrink-0 gap-4 sticky top-20 z-30">
+          < div className="bg-white border-b border-gray-200 px-6 py-3 flex items-center shadow-sm shrink-0 gap-4 sticky top-20 z-30" >
 
             {/* Sidebar Toggle Button */}
-            <button
+            < button
               onClick={() => setIsSidebarOpen(!isSidebarOpen)}
               className="text-gray-500 hover:text-primary hover:bg-gray-50 p-1.5 rounded-md transition-colors block"
               title={isSidebarOpen ? "Ocultar menú lateral" : "Mostrar menú lateral"}
@@ -310,7 +326,7 @@ const ClientLayout: React.FC<ClientLayoutProps> = ({ children, fullHeight = fals
               <span className="material-symbols-outlined text-2xl">
                 {isSidebarOpen ? 'menu_open' : 'menu'}
               </span>
-            </button>
+            </button >
 
             <div className="flex items-center gap-2 text-sm text-gray-500 overflow-x-auto no-scrollbar whitespace-nowrap">
               <span className="material-symbols-outlined text-gray-400">home</span>
@@ -332,18 +348,18 @@ const ClientLayout: React.FC<ClientLayoutProps> = ({ children, fullHeight = fals
                 );
               })}
             </div>
-          </div>
+          </div >
 
           {/* Content */}
-          <div className={`${fullHeight ? 'h-[calc(100vh-140px)]' : ''}`}>
+          < div className={`${fullHeight ? 'h-[calc(100vh-140px)]' : ''}`}>
             <div className={`${fullHeight ? 'h-full flex flex-col' : 'p-6 md:p-8 lg:p-10 max-w-7xl w-full mx-auto'}`}>
               {children}
             </div>
-          </div>
-        </main>
-      </div>
+          </div >
+        </main >
+      </div >
       <FAQWidget />
-    </div>
+    </div >
   );
 };
 

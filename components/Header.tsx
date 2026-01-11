@@ -47,9 +47,19 @@ const Header: React.FC<HeaderProps> = ({ simple = false }) => {
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
+  const [loading, setLoading] = useState(false);
+
   const handleLogin = async () => {
+    if (!email.trim() || !password.trim()) {
+      setLoginError('Por favor ingresa tu usuario y contraseña');
+      return;
+    }
+
     try {
+      setLoading(true);
       setLoginError('');
+      console.log('Attempting login for:', email);
+
       const data = await authService.login(email, password);
       // Data contains { message, token, user }
 
@@ -77,8 +87,10 @@ const Header: React.FC<HeaderProps> = ({ simple = false }) => {
       else if (userData.role === 'admin') navigate('/admin/dashboard');
 
     } catch (error: any) {
-      console.error(error);
-      setLoginError(error.response?.data?.message || 'Error al iniciar sesión');
+      console.error('Login error:', error);
+      setLoginError(error.response?.data?.message || 'Error al iniciar sesión. Verifique sus credenciales.');
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -333,6 +345,10 @@ const Header: React.FC<HeaderProps> = ({ simple = false }) => {
                 <span>Vendor: <code>vendor1@example.com</code></span>
                 <span>Clave: <code>password123</code></span>
               </div>
+              <div className="flex justify-between border-t border-gray-100 pt-1 bg-purple-50 -mx-3 -mb-3 px-3 pb-3 mt-2 rounded-b-lg">
+                <span className="font-bold text-purple-700">Admin: <code>admin@aimarketplace.com</code></span>
+                <span className="font-bold text-purple-700">Clave: <code>admin123</code></span>
+              </div>
             </div>
           </div>
 
@@ -366,7 +382,14 @@ const Header: React.FC<HeaderProps> = ({ simple = false }) => {
               <span className="material-symbols-outlined text-xl">{showPassword ? 'visibility_off' : 'visibility'}</span>
             </button>
           </div>
-          <Button fullWidth onClick={handleLogin}>Entrar</Button>
+          <Button fullWidth onClick={handleLogin} disabled={loading}>
+            {loading ? (
+              <span className="flex items-center justify-center gap-2">
+                <span className="material-symbols-outlined animate-spin text-sm">sync</span>
+                Entrando...
+              </span>
+            ) : 'Entrar'}
+          </Button>
           <div className="flex items-center gap-4 my-2">
             <div className="h-px bg-gray-200 flex-1"></div>
             <span className="text-xs text-gray-400">O</span>

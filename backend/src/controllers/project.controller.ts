@@ -1,5 +1,6 @@
 import { Request, Response } from 'express';
 import { PrismaClient, UserRole, ProjectStatus } from '@prisma/client';
+import { notificationService } from '../services/notification.service';
 
 const prisma = new PrismaClient();
 
@@ -50,6 +51,12 @@ export const requestProject = async (req: Request, res: Response) => {
         const clientProfile = await prisma.clientProfile.findUnique({ where: { userId: user.userId } });
         if (!clientProfile) return res.status(404).json({ message: 'Client profile not found' });
 
+        // Get vendor details for notification
+        const vendor = await prisma.vendorProfile.findUnique({
+            where: { id: vendorId },
+            include: { user: true }
+        });
+
         const project = await prisma.project.create({
             data: {
                 title,
@@ -61,6 +68,23 @@ export const requestProject = async (req: Request, res: Response) => {
                 status: ProjectStatus.PROPOSED   // Initial status
             }
         });
+
+        // Send notification to vendor
+        try {
+            if (vendor) {
+                await notificationService.notifyProposalReceived(
+                    vendor.userId,
+                    project.id,
+                    {
+                        userId: user.userId,
+                        companyName: clientProfile.companyName || 'Cliente',
+                        projectTitle: title
+                    }
+                );
+            }
+        } catch (notifError) {
+            console.error('Failed to send proposal notification:', notifError);
+        }
 
         res.status(201).json(project);
     } catch (error) {
@@ -259,8 +283,43 @@ export const updateRequestStatus = async (req: Request, res: Response) => {
             data: {
                 status: status as ProjectStatus,
                 rejectionReason: rejectionReason
+            },
+            include: {
+                client: { include: { user: true } },
+                vendor: true
             }
         });
+
+        // Send notifications to client based on status change
+        try {
+            if (updated.client && vendorProfile) {
+                if (status === ProjectStatus.CONTACTED || status === ProjectStatus.IN_NEGOTIATION) {
+                    // Vendor accepted the proposal - Notify CLIENT
+                    await notificationService.notifyProposalAccepted(
+                        updated.client.userId,  // FIX: Send to client, not vendor
+                        id,
+                        {
+                            userId: vendorProfile.userId,
+                            companyName: vendorProfile.companyName || 'Vendor',
+                            projectTitle: updated.title
+                        }
+                    );
+                } else if (status === ProjectStatus.DECLINED) {
+                    // Vendor declined the proposal - Notify CLIENT
+                    await notificationService.notifyProposalRejected(
+                        updated.client.userId,  // FIX: Send to client, not vendor
+                        id,
+                        {
+                            userId: vendorProfile.userId,
+                            companyName: vendorProfile.companyName || 'Vendor',
+                            projectTitle: updated.title
+                        }
+                    );
+                }
+            }
+        } catch (notifError) {
+            console.error('Failed to send proposal status notification:', notifError);
+        }
 
         res.json(updated);
     } catch (error) {
@@ -282,12 +341,12 @@ export const setupProject = async (req: Request, res: Response) => {
 
         // Verify ownership
         const project = await prisma.project.findUnique({ where: { id } });
-        // NOTE: Allow setup if project is ACCEPTED (Contract Signed) OR IN_PROGRESS
-        if (!project || (project.status !== 'ACCEPTED' && project.status !== 'IN_PROGRESS')) {
-            return res.status(400).json({ message: 'Project must be accepted before setup' });
+        // NOTE: Allow setup if project is PENDING_SETUP, ACCEPTED (backward compat) OR IN_PROGRESS (re-setup)
+        if (!project || !['PENDING_SETUP', 'ACCEPTED', 'IN_PROGRESS'].includes(project.status)) {
+            return res.status(400).json({ message: 'Project must be signed before setup' });
         }
 
-        // Transaction to update project and replace milestones
+        // Transaction to update project and sync milestones
         const updated = await prisma.$transaction(async (tx) => {
             // Update Project Details
             const p = await tx.project.update({
@@ -301,26 +360,73 @@ export const setupProject = async (req: Request, res: Response) => {
                 }
             });
 
-            // Clear old milestones (if re-running setup)
-            await tx.milestone.deleteMany({ where: { projectId: id } });
+            // Smart Sync Milestones (Update, Create, Delete)
+            if (milestones && Array.isArray(milestones)) {
+                // 1. Get existing milestones
+                const existingMilestones = await tx.milestone.findMany({
+                    where: { projectId: id },
+                    select: { id: true }
+                });
+                const existingIds = existingMilestones.map(m => m.id);
 
-            // Create new milestones
-            if (milestones && milestones.length > 0) {
-                // Filter out milestones without title or date to be safe
-                const validMilestones = milestones.filter((m: any) => m.title && m.dueDate);
+                // 2. Identify Incoming IDs (Safe filtering)
+                const incomingIds = milestones
+                    .filter((m: any) => m.id && existingIds.includes(m.id))
+                    .map((m: any) => m.id);
 
-                if (validMilestones.length > 0) {
-                    await tx.milestone.createMany({
-                        data: validMilestones.map((m: any, index: number) => ({
-                            projectId: id,
-                            title: m.title,
-                            description: m.description || '',
-                            amount: isNaN(parseFloat(m.amount)) ? 0 : parseFloat(m.amount),
-                            dueDate: new Date(m.dueDate),
-                            status: 'PENDING',
-                            order: index
-                        }))
+                // 3. Delete removed milestones
+                const toDeleteIds = existingIds.filter(id => !incomingIds.includes(id));
+
+                if (toDeleteIds.length > 0) {
+                    // Cleanup related data before deleting milestone (Manual Cascade)
+                    await tx.paymentRequest.deleteMany({
+                        where: { milestoneId: { in: toDeleteIds } }
                     });
+
+                    // Safe delete: Will trigger error if other constraints exist (e.g. Reviews), 
+                    // which is desired behavior to prevent accidental data loss of reviews.
+                    // If we wanted to allow deleting milestones with reviews, we would need to delete reviews first.
+                    // For now, let's assume if it has reviews it shouldn't be deleted easily.
+                    await tx.milestone.deleteMany({
+                        where: { id: { in: toDeleteIds } }
+                    });
+                }
+
+                // 4. Upsert (Update existing / Create new)
+                for (const [index, m] of milestones.entries()) {
+                    // Validations
+                    if (!m.title || !m.dueDate) continue;
+
+                    const amount = isNaN(parseFloat(m.amount)) ? 0 : parseFloat(m.amount);
+                    const dueDate = new Date(m.dueDate);
+
+                    if (m.id && existingIds.includes(m.id)) {
+                        // UPDATE
+                        await tx.milestone.update({
+                            where: { id: m.id },
+                            data: {
+                                title: m.title,
+                                description: m.description || '',
+                                amount: amount,
+                                dueDate: dueDate,
+                                order: index
+                                // Preserved: status, isPaid, etc.
+                            }
+                        });
+                    } else {
+                        // CREATE
+                        await tx.milestone.create({
+                            data: {
+                                projectId: id,
+                                title: m.title,
+                                description: m.description || '',
+                                amount: amount,
+                                dueDate: dueDate,
+                                status: 'PENDING',
+                                order: index
+                            }
+                        });
+                    }
                 }
             }
 
@@ -340,11 +446,34 @@ export const setupProject = async (req: Request, res: Response) => {
             return p;
         });
 
+        // Notify client about roadmap update
+        try {
+            const projectWithClient = await prisma.project.findUnique({
+                where: { id },
+                include: { client: true, vendor: true }
+            });
+
+            if (projectWithClient?.client) {
+                await notificationService.notifyProjectUpdated(
+                    projectWithClient.client.userId,
+                    {
+                        projectId: id,
+                        projectTitle: projectWithClient.title,
+                        updateType: 'Roadmap actualizado',
+                        vendorUserId: user.userId,
+                        vendorName: projectWithClient.vendor?.companyName || 'Vendor'
+                    }
+                );
+            }
+        } catch (notifError) {
+            console.error('Failed to send roadmap update notification:', notifError);
+        }
+
         res.json(updated);
 
     } catch (error) {
         console.error("Error setting up project:", error);
-        res.status(500).json({ message: 'Error setting up project' });
+        res.status(500).json({ message: 'Error setting up project: ' + (error as Error).message });
     }
 };
 
@@ -361,7 +490,13 @@ export const getProjectTracking = async (req: Request, res: Response) => {
                 milestones: {
                     orderBy: { order: 'asc' },
                     include: {
-                        paymentRequest: true
+                        paymentRequest: true,
+                        deliverableFolders: {
+                            include: {
+                                files: true
+                            }
+                        },
+                        reviews: true
                     }
                 },
                 folders: { include: { files: true }, where: { parentId: null } },

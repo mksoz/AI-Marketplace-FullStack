@@ -1,5 +1,6 @@
 import { Request, Response } from 'express';
 import { PrismaClient, EventType, EventStatus } from '@prisma/client';
+import notificationService from '../services/notification.service';
 import ical from 'ical-generator';
 
 const prisma = new PrismaClient();

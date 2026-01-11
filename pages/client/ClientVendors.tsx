@@ -125,7 +125,7 @@ const ClientVendors: React.FC = () => {
 
    return (
       <ClientLayout>
-         <div className="space-y-8">
+         <div className="space-y-6">
             <div className="flex justify-between items-center">
                <div>
                   <h1 className="text-3xl font-black text-gray-900">Mis Vendors</h1>
@@ -133,69 +133,11 @@ const ClientVendors: React.FC = () => {
                </div>
             </div>
 
-            {/* Advanced Search Bar */}
-            <div className="bg-white p-6 rounded-xl border border-gray-200 shadow-sm flex flex-col md:flex-row justify-between items-center gap-4 relative z-20">
-               <div className="w-full relative z-20" ref={searchRef}>
-                  <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Buscar Vendor o Especialidad</label>
-                  <div className="relative">
-                     <div
-                        className="flex items-center gap-3 w-full bg-white border border-gray-200 rounded-xl px-4 py-3 shadow-sm focus-within:ring-2 focus-within:ring-primary/20 focus-within:border-primary transition-all"
-                        onClick={() => setIsSearchOpen(true)}
-                     >
-                        <span className="material-symbols-outlined text-gray-400">search</span>
-                        <input
-                           type="text"
-                           placeholder="Escribe para buscar..."
-                           className="flex-1 bg-transparent outline-none text-gray-900 font-medium placeholder:text-gray-400"
-                           value={searchQuery}
-                           onChange={(e) => {
-                              setSearchQuery(e.target.value);
-                              setIsSearchOpen(true);
-                           }}
-                           onFocus={() => setIsSearchOpen(true)}
-                        />
-                        {searchQuery && (
-                           <button onClick={(e) => { e.stopPropagation(); setSearchQuery(''); }} className="text-gray-400 hover:text-gray-600">
-                              <span className="material-symbols-outlined text-sm">close</span>
-                           </button>
-                        )}
-                     </div>
-
-                     {isSearchOpen && (
-                        <div className="absolute top-full left-0 w-full bg-white rounded-xl shadow-floating border border-gray-100 mt-2 p-2 animate-in fade-in zoom-in-95 duration-200 max-h-80 overflow-y-auto z-50">
-                           {searchSuggestions.length > 0 ? (
-                              searchSuggestions.map(c => (
-                                 <button
-                                    key={c.id}
-                                    onClick={() => {
-                                       setSearchQuery(c.name); // Set query to name or keep empty? User wants "write query". Let's set name.
-                                       setActiveVendorId(c.id);
-                                       setIsSearchOpen(false);
-                                    }}
-                                    className="w-full text-left px-3 py-2 rounded-lg flex items-center gap-3 hover:bg-gray-50 group transition-colors"
-                                 >
-                                    <img src={c.logo} alt={c.name} className="w-8 h-8 rounded-md bg-gray-100 object-cover" />
-                                    <div className="flex-1">
-                                       <p className="font-bold text-sm text-gray-900">{c.name}</p>
-                                       <p className="text-xs text-gray-500 truncate">{c.specialties?.join(', ')}</p>
-                                    </div>
-                                 </button>
-                              ))
-                           ) : (
-                              <p className="text-center text-gray-500 text-sm py-4">No se encontraron vendors</p>
-                           )}
-                        </div>
-                     )}
-                  </div>
-               </div>
-
-
-            </div>
-
             <div className="flex flex-col lg:flex-row gap-6 items-start">
                {/* List */}
                <div className="w-full lg:w-1/3 flex flex-col gap-4">
-                  <div className="flex gap-2 pb-2">
+                  {/* Filter Buttons */}
+                  <div className="flex gap-2">
                      <button
                         onClick={() => setActiveTab('all')}
                         className={`px-4 py-1.5 rounded-lg text-sm font-medium ${activeTab === 'all' ? 'bg-primary text-white' : 'bg-white border border-gray-200 text-gray-600 hover:bg-gray-50'
@@ -217,6 +159,58 @@ const ClientVendors: React.FC = () => {
                      >
                         Contactados
                      </button>
+                  </div>
+
+                  {/* Compact Search Bar */}
+                  <div className="w-full relative" ref={searchRef}>
+                     <div
+                        className="flex items-center gap-2 w-full bg-white border border-gray-200 rounded-lg px-3 py-2.5 focus-within:ring-2 focus-within:ring-primary/20 focus-within:border-primary transition-all"
+                        onClick={() => setIsSearchOpen(true)}
+                     >
+                        <span className="material-symbols-outlined text-gray-400 text-[20px]">search</span>
+                        <input
+                           type="text"
+                           placeholder="Buscar vendor o especialidad..."
+                           className="flex-1 bg-transparent outline-none text-sm text-gray-900 placeholder:text-gray-400"
+                           value={searchQuery}
+                           onChange={(e) => {
+                              setSearchQuery(e.target.value);
+                              setIsSearchOpen(true);
+                           }}
+                           onFocus={() => setIsSearchOpen(true)}
+                        />
+                        {searchQuery && (
+                           <button onClick={(e) => { e.stopPropagation(); setSearchQuery(''); }} className="text-gray-400 hover:text-gray-600">
+                              <span className="material-symbols-outlined text-[18px]">close</span>
+                           </button>
+                        )}
+                     </div>
+
+                     {isSearchOpen && (
+                        <div className="absolute top-full left-0 w-full bg-white rounded-xl shadow-floating border border-gray-100 mt-2 p-2 animate-in fade-in zoom-in-95 duration-200 max-h-80 overflow-y-auto z-50">
+                           {searchSuggestions.length > 0 ? (
+                              searchSuggestions.map(c => (
+                                 <button
+                                    key={c.id}
+                                    onClick={() => {
+                                       setSearchQuery(c.name);
+                                       setActiveVendorId(c.id);
+                                       setIsSearchOpen(false);
+                                    }}
+                                    className="w-full text-left px-3 py-2 rounded-lg flex items-center gap-3 hover:bg-gray-50 group transition-colors"
+                                 >
+                                    <img src={c.logo} alt={c.name} className="w-8 h-8 rounded-md bg-gray-100 object-cover" />
+                                    <div className="flex-1">
+                                       <p className="font-bold text-sm text-gray-900">{c.name}</p>
+                                       <p className="text-xs text-gray-500 truncate">{c.specialties?.join(', ')}</p>
+                                    </div>
+                                 </button>
+                              ))
+                           ) : (
+                              <p className="text-center text-gray-500 text-sm py-4">No se encontraron vendors</p>
+                           )}
+                        </div>
+                     )}
                   </div>
 
                   <div className="space-y-3">

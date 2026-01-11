@@ -7,7 +7,7 @@ interface Milestone {
    title: string;
    description: string;
    amount: number;
-   status: 'PENDING' | 'IN_PROGRESS' | 'COMPLETED' | 'PAID';
+   status: 'PENDING' | 'IN_PROGRESS' | 'READY_FOR_REVIEW' | 'CHANGES_REQUESTED' | 'IN_DISPUTE' | 'COMPLETED' | 'PAID';
    dueDate?: string;
    isPaid?: boolean;
    completionNote?: string;
@@ -78,6 +78,42 @@ const ClientProjectMilestones: React.FC<ClientProjectMilestonesProps> = ({ proje
       }
    };
 
+   // Review Deliverables State
+   const [showReviewModal, setShowReviewModal] = useState(false);
+   const [selectedMilestoneForReview, setSelectedMilestoneForReview] = useState<Milestone | null>(null);
+   const [reviewAction, setReviewAction] = useState<'INITIAL' | 'APPROVE' | 'REJECT'>('INITIAL');
+   const [reviewComment, setReviewComment] = useState('');
+
+   const handleReviewSubmit = async (status: 'APPROVED' | 'REJECTED') => {
+      if (!selectedMilestoneForReview) return;
+
+      setLoading(true);
+      try {
+         const response = await api.post(`/milestones/${selectedMilestoneForReview.id}/review`, {
+            status,
+            comment: reviewComment
+         });
+
+         // Check if mediation was triggered
+         if (response.data.requiresMediation) {
+            showToast('⚖️ Máximo de rechazos alcanzado. Se ha abierto un caso de mediación con el equipo de soporte.', 'warning');
+         } else {
+            showToast(status === 'APPROVED' ? 'Hito aprobado y fondos liberados' : 'Cambios solicitados correctamente', 'success');
+         }
+
+         setShowReviewModal(false);
+         setSelectedMilestoneForReview(null);
+         setReviewComment('');
+         setReviewAction('INITIAL');
+         if (onUpdate) onUpdate();
+      } catch (error: any) {
+         console.error('Review error:', error);
+         showToast(error.response?.data?.message || 'Error al procesar la revisión', 'error');
+      } finally {
+         setLoading(false);
+      }
+   };
+
    if (milestones.length === 0) {
       return (
          <div className="text-center py-10 border border-dashed border-gray-200 rounded-2xl bg-gray-50">
@@ -142,12 +178,24 @@ const ClientProjectMilestones: React.FC<ClientProjectMilestonesProps> = ({ proje
                                        className="px-4 py-2 bg-gradient-to-r from-purple-500 to-purple-600 text-white text-sm font-bold rounded-lg hover:from-purple-600 hover:to-purple-700 shadow-md hover:shadow-lg transition-all flex items-center gap-2"
                                     >
                                        <span className="material-symbols-outlined text-base">notification_important</span>
-                                       Revisar Solicitud (${milestone.amount.toLocaleString()})
+                                       Revisar Solicitud Pago
+                                    </button>
+                                 ) : milestone.status === 'READY_FOR_REVIEW' ? (
+                                    <button
+                                       onClick={() => {
+                                          setSelectedMilestoneForReview(milestone);
+                                          setReviewAction('INITIAL');
+                                          setShowReviewModal(true);
+                                       }}
+                                       className="px-4 py-2 bg-blue-600 text-white text-sm font-bold rounded-lg hover:bg-blue-700 shadow-md flex items-center gap-2 animate-pulse"
+                                    >
+                                       <span className="material-symbols-outlined text-base">rate_review</span>
+                                       Revisar Entregables
                                     </button>
                                  ) : (
                                     <>
                                        <span className={`block font-bold ${isPending ? 'text-gray-400' : 'text-gray-900'}`}>${milestone.amount.toLocaleString()} USD</span>
-                                       <span className="text-xs text-gray-500">{milestone.isPaid ? 'Pagado' : (isCompleted ? 'En Garantía (Escrow)' : 'Pendiente')}</span>
+                                       <span className="text-xs text-gray-500">{milestone.isPaid ? 'Pagado' : (isCompleted ? 'En Garantía (Escrow)' : (milestone.status === 'IN_DISPUTE' ? '⚖️ En Mediación' : milestone.status === 'CHANGES_REQUESTED' ? 'Cambios Solicitados' : ''))}</span>
                                     </>
                                  )}
                               </div>
@@ -270,6 +318,7 @@ const ClientProjectMilestones: React.FC<ClientProjectMilestonesProps> = ({ proje
          {/* Reject Payment Modal */}
          {showRejectModal && selectedRequest && (
             <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
+               {/* ... existing modal content ... */}
                <div className="bg-white rounded-2xl w-full max-w-md shadow-2xl animate-in zoom-in-95">
                   <div className="p-6">
                      <div className="text-center mb-6">
@@ -323,6 +372,157 @@ const ClientProjectMilestones: React.FC<ClientProjectMilestonesProps> = ({ proje
                            )}
                         </button>
                      </div>
+                  </div>
+               </div>
+            </div>
+         )}
+
+         {/* Deliverable Review Modal */}
+         {showReviewModal && selectedMilestoneForReview && (
+            <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
+               <div className="bg-white rounded-2xl w-full max-w-lg shadow-2xl animate-in zoom-in-95">
+                  <div className="p-6">
+                     <div className="text-center mb-6">
+                        <div className="w-16 h-16 bg-blue-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                           <span className="material-symbols-outlined text-3xl text-blue-600">rate_review</span>
+                        </div>
+                        <h3 className="text-2xl font-bold text-gray-900 mb-2">Revisión de Entregables</h3>
+                        <p className="text-gray-600 text-sm">
+                           Hito: <span className="font-bold">{selectedMilestoneForReview.title}</span>
+                        </p>
+                     </div>
+
+                     {reviewAction === 'INITIAL' && (
+                        <div className="space-y-4">
+                           {/* File List for Review */}
+                           <div className="bg-gray-50 border border-gray-200 rounded-xl p-4 mb-4">
+                              <h4 className="text-sm font-bold text-gray-700 mb-3 flex items-center gap-2">
+                                 <span className="material-symbols-outlined text-base">folder_open</span>
+                                 Archivos Entregados
+                              </h4>
+                              {selectedMilestoneForReview.deliverableFolders?.some(f => f.files.length > 0) ? (
+                                 <div className="space-y-3">
+                                    {selectedMilestoneForReview.deliverableFolders.map(folder => (
+                                       folder.files.length > 0 && (
+                                          <div key={folder.id}>
+                                             <div className="text-xs font-bold text-gray-400 uppercase mb-1 px-1">{folder.name}</div>
+                                             <div className="space-y-1">
+                                                {folder.files.map(file => (
+                                                   <a
+                                                      key={file.id}
+                                                      href={file.url}
+                                                      target="_blank"
+                                                      rel="noopener noreferrer"
+                                                      className="flex items-center gap-3 p-2 bg-white border border-gray-200 rounded-lg hover:border-blue-300 hover:shadow-sm transition-all group"
+                                                   >
+                                                      <div className="w-8 h-8 rounded-lg bg-blue-50 flex items-center justify-center text-blue-600">
+                                                         <span className="material-symbols-outlined text-lg">description</span>
+                                                      </div>
+                                                      <div className="flex-1 min-w-0">
+                                                         <p className="text-sm font-medium text-gray-700 truncate group-hover:text-blue-700">{file.name}</p>
+                                                         <p className="text-xs text-gray-400">{(file.size / 1024 / 1024).toFixed(2)} MB</p>
+                                                      </div>
+                                                      <span className="material-symbols-outlined text-gray-300 group-hover:text-blue-500">visibility</span>
+                                                   </a>
+                                                ))}
+                                             </div>
+                                          </div>
+                                       )
+                                    ))}
+                                 </div>
+                              ) : (
+                                 <p className="text-sm text-gray-500 italic">No hay archivos adjuntos en los entregables.</p>
+                              )}
+                           </div>
+
+                           <div className="bg-blue-50 p-4 rounded-xl border border-blue-100 mb-4">
+                              <p className="text-sm text-blue-800">
+                                 <span className="font-bold">Nota:</span> Al aprobar los entregables, se liberarán automáticamente los fondos del hito (${selectedMilestoneForReview.amount.toLocaleString()}) al vendor.
+                              </p>
+                           </div>
+                           <div className="grid grid-cols-2 gap-4">
+                              <button
+                                 onClick={() => setReviewAction('REJECT')}
+                                 className="p-4 border-2 border-red-100 rounded-xl hover:bg-red-50 hover:border-red-200 transition-all text-center group"
+                              >
+                                 <span className="material-symbols-outlined text-3xl text-red-500 mb-2 group-hover:scale-110 transition-transform">thumb_down</span>
+                                 <h4 className="font-bold text-red-700">Solicitar Cambios</h4>
+                                 <p className="text-xs text-red-600 mt-1">El trabajo requiere correcciones</p>
+                              </button>
+
+                              <button
+                                 onClick={() => setReviewAction('APPROVE')}
+                                 className="p-4 border-2 border-green-100 bg-green-50/50 rounded-xl hover:bg-green-100 hover:border-green-300 transition-all text-center group"
+                              >
+                                 <span className="material-symbols-outlined text-3xl text-green-500 mb-2 group-hover:scale-110 transition-transform">verified</span>
+                                 <h4 className="font-bold text-green-700">Aprobar y Pagar</h4>
+                                 <p className="text-xs text-green-600 mt-1">Trabajo correcto, liberar fondos</p>
+                              </button>
+                           </div>
+                           <button
+                              onClick={() => { setShowReviewModal(false); setReviewAction('INITIAL'); }}
+                              className="w-full py-3 text-gray-500 font-bold hover:bg-gray-100 rounded-xl mt-2"
+                           >
+                              Cancelar
+                           </button>
+                        </div>
+                     )}
+
+                     {reviewAction === 'REJECT' && (
+                        <div className="space-y-4">
+                           <h4 className="font-bold text-gray-900">¿Qué cambios son necesarios?</h4>
+                           <textarea
+                              className="w-full p-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-red-500 outline-none resize-none h-32"
+                              placeholder="Describe los cambios requeridos..."
+                              value={reviewComment}
+                              onChange={(e) => setReviewComment(e.target.value)}
+                           />
+                           <div className="flex gap-3 pt-2">
+                              <button
+                                 onClick={() => setReviewAction('INITIAL')}
+                                 className="flex-1 py-2 text-gray-600 font-bold hover:bg-gray-50 rounded-lg"
+                              >
+                                 Atrás
+                              </button>
+                              <button
+                                 onClick={() => handleReviewSubmit('REJECTED')}
+                                 disabled={!reviewComment.trim() || loading}
+                                 className="flex-1 py-2 bg-red-600 text-white font-bold rounded-lg hover:bg-red-700 disabled:opacity-50"
+                              >
+                                 {loading ? 'Enviando...' : 'Solicitar Cambios'}
+                              </button>
+                           </div>
+                        </div>
+                     )}
+
+                     {reviewAction === 'APPROVE' && (
+                        <div className="space-y-4">
+                           <div className="text-center py-4">
+                              <span className="material-symbols-outlined text-5xl text-green-500 mb-2">payments</span>
+                              <h4 className="text-xl font-bold text-gray-900">Confirmar Liberación de Fondos</h4>
+                              <p className="text-gray-600 mt-2">
+                                 Vas a liberar <span className="font-bold text-gray-900">${selectedMilestoneForReview.amount.toLocaleString()} USD</span> al vendor.
+                                 <br />Esta acción es irreversible.
+                              </p>
+                           </div>
+
+                           <div className="flex gap-3 pt-2">
+                              <button
+                                 onClick={() => setReviewAction('INITIAL')}
+                                 className="flex-1 py-2 text-gray-600 font-bold hover:bg-gray-50 rounded-lg"
+                              >
+                                 Atrás
+                              </button>
+                              <button
+                                 onClick={() => handleReviewSubmit('APPROVED')}
+                                 disabled={loading}
+                                 className="flex-1 py-2 bg-green-600 text-white font-bold rounded-lg hover:bg-green-700 disabled:opacity-50 shadow-lg shadow-green-200"
+                              >
+                                 {loading ? 'Procesando...' : 'Confirmar y Pagar'}
+                              </button>
+                           </div>
+                        </div>
+                     )}
                   </div>
                </div>
             </div>

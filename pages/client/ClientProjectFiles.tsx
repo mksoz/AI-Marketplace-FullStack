@@ -1,4 +1,6 @@
 import React, { useState } from 'react';
+import api from '../../services/api';
+import { useToast } from '../../contexts/ToastContext';
 import DeliverableFolderCard from '../../components/deliverables/DeliverableFolderCard';
 import MilestoneFolderGrid from '../../components/deliverables/MilestoneFolderGrid';
 import RepositoryView from '../../components/RepositoryView';
@@ -6,9 +8,11 @@ import RepositoryView from '../../components/RepositoryView';
 interface ClientProjectFilesProps {
     project: any;
     userRole: 'CLIENT' | 'VENDOR';
+    onUpdate?: () => void;
+    onGoToRoadmap?: () => void;
 }
 
-const ClientProjectFiles: React.FC<ClientProjectFilesProps> = ({ project, userRole = 'CLIENT' }) => {
+const ClientProjectFiles: React.FC<ClientProjectFilesProps> = ({ project, userRole = 'CLIENT', onUpdate, onGoToRoadmap }) => {
     // View Mode: Documents (Standard) vs Repository (GitHub) vs Deliverables (Protected by milestone)
     const [viewMode, setViewMode] = useState<'documents' | 'repository' | 'deliverables'>('deliverables');
 
@@ -40,6 +44,11 @@ const ClientProjectFiles: React.FC<ClientProjectFilesProps> = ({ project, userRo
     // Ideally this comes from props or a fetch, for now using local copy or props
     const [localFolders, setLocalFolders] = useState<any[]>(project.folders || []);
     const [localFiles, setLocalFiles] = useState<any[]>(project.files || []);
+
+    // Submission State
+    const { showToast } = useToast();
+    const [showSubmitModal, setShowSubmitModal] = useState(false);
+    const [isSubmitting, setIsSubmitting] = useState(false);
 
     // Sync with props if needed, but for local edits we might need local state
     // For this demo we'll just push to local state
@@ -336,17 +345,42 @@ const ClientProjectFiles: React.FC<ClientProjectFilesProps> = ({ project, userRo
                     {/* Detail View - Selected Folder */}
                     {selectedFolder && selectedMilestone && (
                         <div>
-                            {/* Back Button */}
-                            <button
-                                onClick={() => {
-                                    setSelectedFolder(null);
-                                    setSelectedMilestone(null);
-                                }}
-                                className="mb-4 p-2 bg-white border border-gray-200 rounded-lg hover:bg-gray-50 hover:border-gray-300 transition-all group"
-                                title="Volver a los entregables"
-                            >
-                                <span className="material-symbols-outlined text-xl text-gray-600 group-hover:text-primary transition-colors">arrow_back</span>
-                            </button>
+                            {/* Header with Back Button and Actions */}
+                            <div className="flex justify-between items-center mb-4">
+                                <button
+                                    onClick={() => {
+                                        setSelectedFolder(null);
+                                        setSelectedMilestone(null);
+                                    }}
+                                    className="p-2 bg-white border border-gray-200 rounded-lg hover:bg-gray-50 hover:border-gray-300 transition-all group"
+                                    title="Volver a los entregables"
+                                >
+                                    <span className="material-symbols-outlined text-xl text-gray-600 group-hover:text-primary transition-colors">arrow_back</span>
+                                </button>
+
+                                {/* Vendor Submit Action */}
+                                {/* Vendor Submit Action */}
+                                {userRole === 'VENDOR' && (selectedMilestone.status === 'IN_PROGRESS' || selectedMilestone.status === 'CHANGES_REQUESTED') && (
+                                    <button
+                                        onClick={() => setShowSubmitModal(true)}
+                                        className="px-4 py-2 bg-primary text-white font-bold rounded-lg hover:bg-primary-dark shadow-md flex items-center gap-2"
+                                    >
+                                        <span className="material-symbols-outlined">send</span>
+                                        Enviar a Revisión
+                                    </button>
+                                )}
+
+                                {/* Client Review Action */}
+                                {userRole === 'CLIENT' && selectedMilestone.status === 'READY_FOR_REVIEW' && (
+                                    <button
+                                        onClick={() => onGoToRoadmap && onGoToRoadmap()}
+                                        className="px-4 py-2 bg-blue-600 text-white font-bold rounded-lg hover:bg-blue-700 shadow-md flex items-center gap-2 animate-pulse"
+                                    >
+                                        <span className="material-symbols-outlined">rate_review</span>
+                                        Revisar en Roadmap
+                                    </button>
+                                )}
+                            </div>
 
                             {/* Folder Card */}
                             <DeliverableFolderCard
@@ -574,6 +608,74 @@ const ClientProjectFiles: React.FC<ClientProjectFilesProps> = ({ project, userRo
                         <div className="flex justify-end gap-2">
                             <button onClick={() => setShowNewFolderModal(false)} className="px-4 py-2 text-gray-600 font-bold hover:bg-gray-50 rounded-lg">Cancelar</button>
                             <button onClick={handleCreateFolder} className="px-4 py-2 bg-primary text-white font-bold rounded-lg hover:bg-primary-dark">Crear</button>
+                        </div>
+                    </div>
+                </div>
+            )}
+            {/* Submit Confirmation Modal */}
+            {showSubmitModal && selectedMilestone && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4 animate-in fade-in duration-200">
+                    <div className="bg-white rounded-2xl w-full max-w-sm shadow-2xl p-6 transform transition-all scale-100">
+                        <div className="text-center mb-6">
+                            <div className="w-16 h-16 bg-blue-50 rounded-full flex items-center justify-center mx-auto mb-4">
+                                <span className="material-symbols-outlined text-3xl text-primary">send</span>
+                            </div>
+                            <h3 className="text-xl font-bold text-gray-900 mb-2">¿Enviar a Revisión?</h3>
+                            <p className="text-gray-600 text-sm">
+                                Se notificará al cliente para que revise los entregables del hito <span className="font-bold">"{selectedMilestone.title}"</span>.
+                            </p>
+                        </div>
+
+                        <div className="flex gap-3">
+                            <button
+                                onClick={() => setShowSubmitModal(false)}
+                                className="flex-1 py-2.5 text-gray-600 font-bold hover:bg-gray-50 rounded-xl transition-colors"
+                                disabled={isSubmitting}
+                            >
+                                Cancelar
+                            </button>
+                            <button
+                                onClick={async () => {
+                                    setIsSubmitting(true);
+                                    try {
+                                        await api.post(`/milestones/${selectedMilestone.id}/submit`);
+                                        showToast('Entregables enviados correctamente', 'success');
+
+                                        // Update state
+                                        if (project && project.milestones) {
+                                            const m = project.milestones.find((m: any) => m.id === selectedMilestone.id);
+                                            if (m) m.status = 'READY_FOR_REVIEW';
+                                        }
+                                        setSelectedMilestone(prev => ({ ...prev, status: 'READY_FOR_REVIEW' }));
+                                        setShowSubmitModal(false);
+
+                                        if (onUpdate) onUpdate();
+                                    } catch (e: any) {
+                                        console.error(e);
+                                        const errorMsg = e.response?.data?.message || 'Error al enviar entregables';
+
+                                        // Check if it's an escrow-related error
+                                        if (errorMsg.includes('deposit funds') || errorMsg.includes('escrow')) {
+                                            showToast('⚠️ El cliente debe depositar fondos antes de revisar. Por favor, contacta con el cliente.', 'warning');
+                                        } else {
+                                            showToast(errorMsg, 'error');
+                                        }
+                                    } finally {
+                                        setIsSubmitting(false);
+                                    }
+                                }}
+                                className="flex-1 py-2.5 bg-primary text-white font-bold rounded-xl hover:bg-primary-dark shadow-lg shadow-blue-200 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                                disabled={isSubmitting}
+                            >
+                                {isSubmitting ? (
+                                    <>
+                                        <span className="material-symbols-outlined animate-spin text-sm">sync</span>
+                                        Enviando...
+                                    </>
+                                ) : (
+                                    'Confirmar Envío'
+                                )}
+                            </button>
                         </div>
                     </div>
                 </div>

@@ -25,6 +25,7 @@ export const authenticateJWT = (req: Request, res: Response, next: NextFunction)
         req.user = decoded;
         next();
     } catch (error) {
+        console.error('[Auth] Token verification failed:', error);
         return res.status(403).json({ message: 'Invalid or expired token' });
     }
 };

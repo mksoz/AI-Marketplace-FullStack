@@ -11,6 +11,7 @@ import Pricing from './pages/Pricing';
 import ScrollToTop from './components/ScrollToTop';
 import VendorLayout from './components/VendorLayout';
 import { ToastProvider } from './contexts/ToastContext';
+import { Toaster } from 'react-hot-toast';
 
 // Client Views
 import ClientDashboard from './pages/client/ClientDashboard';
@@ -33,7 +34,7 @@ import ClientCalendar from './pages/client/ClientCalendar';
 // Vendor Views
 import VendorDashboard from './pages/vendor/VendorDashboard';
 import VendorProjects from './pages/vendor/VendorProjects';
-import VendorProjectDetails from './pages/vendor/VendorProjectDetails';
+import VendorProjectDetails from './pages/vendor/VendorProjectDetailsV2';
 import VendorProposals from './pages/vendor/VendorProposals';
 import TemplateEditor from './pages/vendor/TemplateEditor';
 import VendorClients from './pages/vendor/VendorClients';
@@ -47,6 +48,8 @@ import VendorNotifications from './pages/vendor/VendorNotifications';
 // Admin Views
 import AdminDashboard from './pages/admin/AdminDashboard';
 import AdminUsers from './pages/admin/AdminUsers';
+import AdminProjects from './pages/admin/AdminProjects';
+import AdminFinance from './pages/admin/AdminFinance';
 import AdminMetrics from './pages/admin/AdminMetrics';
 import AdminPlatform from './pages/admin/AdminPlatform';
 import AdminDisputes from './pages/admin/AdminDisputes';
@@ -119,6 +122,8 @@ const App: React.FC = () => {
           {/* Admin Protected Routes */}
           <Route path="/admin/dashboard" element={<ProtectedRoute><AdminDashboard /></ProtectedRoute>} />
           <Route path="/admin/users" element={<ProtectedRoute><AdminUsers /></ProtectedRoute>} />
+          <Route path="/admin/projects" element={<ProtectedRoute><AdminProjects /></ProtectedRoute>} />
+          <Route path="/admin/finance" element={<ProtectedRoute><AdminFinance /></ProtectedRoute>} />
           <Route path="/admin/metrics" element={<ProtectedRoute><AdminMetrics /></ProtectedRoute>} />
           <Route path="/admin/platform" element={<ProtectedRoute><AdminPlatform /></ProtectedRoute>} />
           <Route path="/admin/disputes" element={<ProtectedRoute><AdminDisputes /></ProtectedRoute>} />
@@ -126,6 +131,30 @@ const App: React.FC = () => {
 
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
+        <Toaster
+          position="top-right"
+          toastOptions={{
+            duration: 4000,
+            style: {
+              background: '#363636',
+              color: '#fff',
+            },
+            success: {
+              duration: 3000,
+              iconTheme: {
+                primary: '#10b981',
+                secondary: '#fff',
+              },
+            },
+            error: {
+              duration: 4000,
+              iconTheme: {
+                primary: '#ef4444',
+                secondary: '#fff',
+              },
+            },
+          }}
+        />
       </Router>
     </ToastProvider>
   );

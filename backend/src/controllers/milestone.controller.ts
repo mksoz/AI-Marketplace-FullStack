@@ -1,79 +1,61 @@
 import { Request, Response } from 'express';
-import { PrismaClient } from '@prisma/client';
+import prisma from '../utils/prisma';
+import { notificationService } from '../services/notification.service';
 
-const prisma = new PrismaClient();
-
-// Complete milestone without payment (for milestones with amount = 0 or vendor self-completion)
-export const completeMilestone = async (req: Request, res: Response) => {
+// POST /api/milestones/:id/start
+// Vendor inicia hito
+export const startMilestone = async (req: Request, res: Response) => {
     try {
         const { id } = req.params;
-        const { completionNote } = req.body;
         const user = req.user;
 
+        // Verificar que es vendor
         if (!user || user.role !== 'VENDOR') {
-            return res.status(403).json({ message: 'Only vendors can complete milestones' });
+            return res.status(403).json({ message: 'Only vendors can start milestones' });
         }
 
-        if (!completionNote || !completionNote.trim()) {
-            return res.status(400).json({ message: 'Completion note is required' });
-        }
-
-        // Get milestone and validate
         const milestone = await prisma.milestone.findUnique({
             where: { id },
-            include: {
-                project: {
-                    include: {
-                        vendor: true
-                    }
-                }
-            }
+            include: { project: { include: { vendor: true } } }
         });
 
-        if (!milestone) {
-            return res.status(404).json({ message: 'Milestone not found' });
-        }
+        if (!milestone) return res.status(404).json({ message: 'Milestone not found' });
 
-        // Verify vendor owns this project
-        if (milestone.project.vendor?.userId !== user.userId) {
+        // Verificar propiedad
+        if (!milestone.project.vendor || milestone.project.vendor.userId !== user.userId) {
             return res.status(403).json({ message: 'Not authorized' });
         }
 
-        // Update milestone to completed
+        // Validar estado
+        if (milestone.status !== 'PENDING') {
+            return res.status(400).json({ message: 'Milestone must be PENDING to start' });
+        }
+
         const updated = await prisma.milestone.update({
             where: { id },
-            data: {
-                status: 'COMPLETED',
-                completionNote: completionNote.trim(),
-                completedAt: new Date()
-            }
+            data: { status: 'IN_PROGRESS' }
         });
 
-        // Unlock the deliverable folder for client access
-        await prisma.deliverableFolder.updateMany({
-            where: { milestoneId: id },
-            data: { status: 'UNLOCKED', unlockedAt: new Date(), unlockedBy: user.userId }
-        });
-
-        res.json({ milestone: updated });
+        res.json({ success: true, milestone: updated });
     } catch (error) {
-        console.error('Error completing milestone:', error);
-        res.status(500).json({ message: 'Error completing milestone' });
+        console.error('[StartMilestone] Error:', error);
+        res.status(500).json({ message: 'Error starting milestone' });
     }
 };
 
-// Request payment for completed milestone
+// POST /api/milestones/:id/request-payment
+// Vendor solicita aprobación de entregables
 export const requestPayment = async (req: Request, res: Response) => {
     try {
         const { id } = req.params;
-        const { vendorNote } = req.body;
         const user = req.user;
 
+        // Verificar que es vendor
         if (!user || user.role !== 'VENDOR') {
             return res.status(403).json({ message: 'Only vendors can request payment' });
         }
 
-        // Get milestone and validate
+        // Obtener milestone con proyecto
         const milestone = await prisma.milestone.findUnique({
             where: { id },
             include: {
@@ -82,7 +64,11 @@ export const requestPayment = async (req: Request, res: Response) => {
                         vendor: true
                     }
                 },
-                paymentRequest: true
+                deliverableFolders: {
+                    include: {
+                        files: true
+                    }
+                }
             }
         });
 
@@ -90,343 +76,372 @@ export const requestPayment = async (req: Request, res: Response) => {
             return res.status(404).json({ message: 'Milestone not found' });
         }
 
-        // Verify vendor owns this project
-        if (milestone.project.vendor?.userId !== user.userId) {
+        // Verificar propiedad
+        if (!milestone.project.vendor || milestone.project.vendor.userId !== user.userId) {
             return res.status(403).json({ message: 'Not authorized' });
         }
 
-        // Verify no existing payment request
-        if (milestone.paymentRequest) {
-            return res.status(400).json({ message: 'Payment request already exists for this milestone' });
+        // Validar estado
+        if (milestone.status !== 'IN_PROGRESS' && milestone.status !== 'CHANGES_REQUESTED') {
+            return res.status(400).json({ message: 'Milestone must be IN_PROGRESS or CHANGES_REQUESTED to request payment' });
         }
 
-        // Verify milestone has payment amount
-        if (milestone.amount <= 0) {
-            return res.status(400).json({ message: 'This milestone has no payment amount' });
+        // Validar que hay archivos
+        const hasFiles = milestone.deliverableFolders.some(folder => folder.files.length > 0);
+        if (!hasFiles) {
+            return res.status(400).json({ message: 'No deliverables uploaded. Please upload files first.' });
         }
 
-        // Create payment request
-        const paymentRequest = await prisma.paymentRequest.create({
+        // Actualizar milestone
+        const reviewDeadline = new Date();
+        reviewDeadline.setDate(reviewDeadline.getDate() + 7); // 7 días
+
+        const updated = await prisma.milestone.update({
+            where: { id },
             data: {
-                milestoneId: id,
-                amount: milestone.amount,
-                vendorNote: vendorNote?.trim() || null,
-                status: 'PENDING'
+                status: 'READY_FOR_REVIEW',
+                submittedAt: new Date(),
+                reviewDeadline
+            },
+            include: {
+                project: {
+                    include: {
+                        client: true,
+                        vendor: true
+                    }
+                }
             }
         });
 
-        res.json({ paymentRequest });
+        // Enviar notificación al cliente
+        try {
+            if ((updated as any).project.client) {
+                await prisma.notification.create({
+                    data: {
+                        userId: (updated as any).project.client.userId,
+                        title: '📋 Entregables listos para revisión',
+                        message: `El vendor ha completado el hito "${updated.title}" del proyecto "${(updated as any).project.title}". Por favor, revisa y aprueba o solicita cambios.`,
+                        type: 'ACTION_REQUIRED',
+                        entityId: updated.projectId,
+                        entityType: 'project'
+                    }
+                });
+            }
+        } catch (notifError) {
+            console.error('[RequestPayment] Failed to send notification:', notifError);
+        }
+
+        res.json({
+            success: true,
+            milestone: updated
+        });
     } catch (error) {
-        console.error('Error requesting payment:', error);
+        console.error('[RequestPayment] Error:', error);
         res.status(500).json({ message: 'Error requesting payment' });
     }
 };
 
-// Get all payment requests for a project
-export const getProjectPaymentRequests = async (req: Request, res: Response) => {
-    try {
-        const { projectId } = req.params;
-        const user = req.user;
-
-        if (!user) {
-            return res.status(401).json({ message: 'Authentication required' });
-        }
-
-        // Get project and verify access
-        const project = await prisma.project.findUnique({
-            where: { id: projectId },
-            include: {
-                client: true,
-                vendor: true,
-                milestones: {
-                    include: {
-                        paymentRequest: true
-                    },
-                    orderBy: {
-                        order: 'asc'
-                    }
-                }
-            }
-        });
-
-        if (!project) {
-            return res.status(404).json({ message: 'Project not found' });
-        }
-
-        // Verify user has access (either client or vendor)
-        const isClient = project.client.userId === user.userId;
-        const isVendor = project.vendor?.userId === user.userId;
-
-        if (!isClient && !isVendor) {
-            return res.status(403).json({ message: 'Not authorized' });
-        }
-
-        // Extract payment requests from milestones
-        const requests = project.milestones
-            .filter(m => m.paymentRequest)
-            .map(m => ({
-                ...m.paymentRequest,
-                milestone: {
-                    id: m.id,
-                    title: m.title,
-                    description: m.description,
-                    amount: m.amount,
-                    status: m.status,
-                    order: m.order
-                }
-            }));
-
-        res.json({ requests });
-    } catch (error) {
-        console.error('Error fetching payment requests:', error);
-        res.status(500).json({ message: 'Error fetching payment requests' });
-    }
-};
-
-// Approve payment request (Client only)
-export const approvePaymentRequest = async (req: Request, res: Response) => {
+// POST /api/milestones/:id/approve
+// Cliente aprueba entregables
+export const approveMilestone = async (req: Request, res: Response) => {
     try {
         const { id } = req.params;
+        console.log(`[ApproveMilestone] Request received for ID: ${id}`);
         const user = req.user;
 
+        // Verificar que es cliente
         if (!user || user.role !== 'CLIENT') {
-            return res.status(403).json({ message: 'Only clients can approve payment requests' });
+            return res.status(403).json({ message: 'Only clients can approve milestones' });
         }
 
-        // Get payment request with related data
-        const paymentRequest = await prisma.paymentRequest.findUnique({
+        const milestone = await prisma.milestone.findUnique({
             where: { id },
             include: {
-                milestone: {
+                project: {
                     include: {
-                        project: {
-                            include: {
-                                client: {
-                                    include: {
-                                        account: true
-                                    }
-                                },
-                                vendor: {
-                                    include: {
-                                        account: true
-                                    }
-                                }
-                            }
-                        }
+                        client: true
                     }
-                }
-            }
-        });
-
-        if (!paymentRequest) {
-            return res.status(404).json({ message: 'Payment request not found' });
-        }
-
-        // Verify client owns this project
-        if (paymentRequest.milestone.project.client.userId !== user.userId) {
-            return res.status(403).json({ message: 'Not authorized' });
-        }
-
-        // Verify status is PENDING
-        if (paymentRequest.status !== 'PENDING') {
-            return res.status(400).json({ message: 'Payment request is not pending' });
-        }
-
-        // Get or create client account
-        let clientAccount = paymentRequest.milestone.project.client.account;
-        if (!clientAccount) {
-            clientAccount = await prisma.clientAccount.create({
-                data: {
-                    clientId: paymentRequest.milestone.project.client.id
-                }
-            });
-        }
-
-        // Get or create vendor account
-        let vendorAccount = paymentRequest.milestone.project.vendor?.account;
-        if (!vendorAccount && paymentRequest.milestone.project.vendor) {
-            vendorAccount = await prisma.vendorAccount.create({
-                data: {
-                    vendorId: paymentRequest.milestone.project.vendor.id
-                }
-            });
-        }
-
-        // Verify sufficient balance
-        if (clientAccount.balance < paymentRequest.amount) {
-            // Check if user has simulation mode enabled
-            const clientUser = await prisma.user.findUnique({
-                where: { id: user.userId }
-            });
-
-            if (clientUser?.simulationMode) {
-                // Auto-deposit in simulation mode
-                const requiredAmount = paymentRequest.amount - clientAccount.balance;
-                await prisma.clientAccount.update({
-                    where: { id: clientAccount.id },
-                    data: {
-                        balance: { increment: requiredAmount }
-                    }
-                });
-
-                // Create deposit transaction record
-                await prisma.transaction.create({
-                    data: {
-                        amount: requiredAmount,
-                        type: 'DEPOSIT',
-                        status: 'COMPLETED',
-                        description: '[SIMULACIÓN] Depósito automático',
-                        toAccountId: clientAccount.id,
-                        completedAt: new Date()
-                    }
-                });
-
-                // Refresh balance
-                clientAccount.balance += requiredAmount;
-            } else {
-                return res.status(400).json({
-                    message: 'Insufficient balance',
-                    required: paymentRequest.amount,
-                    available: clientAccount.balance
-                });
-            }
-        }
-
-        // Execute payment in transaction
-        const result = await prisma.$transaction(async (tx) => {
-            // Create transaction record
-            const transaction = await tx.transaction.create({
-                data: {
-                    amount: paymentRequest.amount,
-                    type: 'PAYMENT',
-                    status: 'COMPLETED',
-                    description: `Payment for milestone: ${paymentRequest.milestone.title}`,
-                    fromAccountId: clientAccount!.id,
-                    toAccountId: vendorAccount!.id,
-                    projectId: paymentRequest.milestone.projectId,
-                    milestoneId: paymentRequest.milestone.id,
-                    completedAt: new Date()
-                }
-            });
-
-            // Update payment request
-            const updatedRequest = await tx.paymentRequest.update({
-                where: { id },
-                data: {
-                    status: 'COMPLETED',
-                    reviewedAt: new Date(),
-                    transactionId: transaction.id
-                }
-            });
-
-            // Update accounts
-            await tx.clientAccount.update({
-                where: { id: clientAccount!.id },
-                data: {
-                    balance: { decrement: paymentRequest.amount }
-                }
-            });
-
-            await tx.vendorAccount.update({
-                where: { id: vendorAccount!.id },
-                data: {
-                    balance: { increment: paymentRequest.amount }
-                }
-            });
-
-            // Mark milestone as paid
-            await tx.milestone.update({
-                where: { id: paymentRequest.milestoneId },
-                data: {
-                    isPaid: true,
-                    status: 'PAID'
-                }
-            });
-
-            // UNLOCK ALL DELIVERABLE FOLDERS for this milestone
-            await tx.deliverableFolder.updateMany({
-                where: {
-                    milestoneId: paymentRequest.milestoneId,
-                    status: { not: 'UNLOCKED' }
                 },
-                data: {
-                    status: 'UNLOCKED',
-                    unlockedAt: new Date(),
-                    unlockedBy: user!.userId
-                }
-            });
-
-            return { updatedRequest, transaction };
-        });
-
-        res.json({
-            paymentRequest: result.updatedRequest,
-            transaction: result.transaction
-        });
-    } catch (error) {
-        console.error('Error approving payment:', error);
-        res.status(500).json({ message: 'Error approving payment' });
-    }
-};
-
-// Reject payment request (Client only)
-export const rejectPaymentRequest = async (req: Request, res: Response) => {
-    try {
-        const { id } = req.params;
-        const { rejectionReason } = req.body;
-        const user = req.user;
-
-        if (!user || user.role !== 'CLIENT') {
-            return res.status(403).json({ message: 'Only clients can reject payment requests' });
-        }
-
-        if (!rejectionReason || !rejectionReason.trim()) {
-            return res.status(400).json({ message: 'Rejection reason is required' });
-        }
-
-        // Get payment request with related data
-        const paymentRequest = await prisma.paymentRequest.findUnique({
-            where: { id },
-            include: {
-                milestone: {
-                    include: {
-                        project: {
-                            include: {
-                                client: true
-                            }
-                        }
-                    }
+                reviews: {
+                    orderBy: { createdAt: 'desc' }
                 }
             }
         });
 
-        if (!paymentRequest) {
-            return res.status(404).json({ message: 'Payment request not found' });
+        if (!milestone) {
+            return res.status(404).json({ message: 'Milestone not found' });
         }
 
-        // Verify client owns this project
-        if (paymentRequest.milestone.project.client.userId !== user.userId) {
+        // Verificar propiedad
+        if (milestone.project.client.userId !== user.userId) {
             return res.status(403).json({ message: 'Not authorized' });
         }
 
-        // Verify status is PENDING
-        if (paymentRequest.status !== 'PENDING') {
-            return res.status(400).json({ message: 'Payment request is not pending' });
+        // Validar estado
+        if (milestone.status !== 'READY_FOR_REVIEW') {
+            return res.status(400).json({ message: 'Milestone is not ready for review' });
         }
 
-        // Update payment request
-        const updated = await prisma.paymentRequest.update({
+        // Crear review
+        await prisma.deliverableReview.create({
+            data: {
+                milestoneId: id,
+                reviewerId: user.userId,
+                status: 'APPROVED',
+                reviewNumber: milestone.reviews.length + 1
+            }
+        });
+
+        // Actualizar milestone
+        const updated = await prisma.milestone.update({
             where: { id },
             data: {
-                status: 'REJECTED',
-                reviewedAt: new Date(),
-                rejectionReason: rejectionReason.trim()
+                status: 'COMPLETED',
+                isPaid: true,
+                completedAt: new Date()
+            },
+            include: {
+                project: {
+                    include: {
+                        vendor: true
+                    }
+                }
             }
         });
 
-        res.json({ paymentRequest: updated });
+        // Enviar notificación al vendor
+        try {
+            if ((updated as any).project.vendor) {
+                await prisma.notification.create({
+                    data: {
+                        userId: (updated as any).project.vendor.userId,
+                        title: '✅ Entregables aprobados',
+                        message: `El cliente ha aprobado el hito "${updated.title}" del proyecto "${(updated as any).project.title}". Los fondos han sido liberados.`,
+                        type: 'PAYMENT_APPROVED',
+                        entityId: updated.projectId,
+                        entityType: 'project'
+                    }
+                });
+            }
+        } catch (notifError) {
+            console.error('[ApproveMilestone] Failed to send notification:', notifError);
+        }
+
+        // TODO: Transferir fondos de escrow al vendor
+
+        res.json({
+            success: true,
+            milestone: updated
+        });
     } catch (error) {
-        console.error('Error rejecting payment:', error);
-        res.status(500).json({ message: 'Error rejecting payment' });
+        console.error('[ApproveMilestone] Error:', error);
+        res.status(500).json({ message: 'Error approving milestone' });
+    }
+};
+
+// POST /api/milestones/:id/reject
+// Cliente rechaza entregables
+export const rejectMilestone = async (req: Request, res: Response) => {
+    try {
+        const { id } = req.params;
+        console.log(`[RejectMilestone] Request received for ID: ${id}`);
+        const { comment } = req.body;
+        const user = req.user;
+
+        // Verificar que es cliente
+        if (!user || user.role !== 'CLIENT') {
+            return res.status(403).json({ message: 'Only clients can reject milestones' });
+        }
+
+        const milestone = await prisma.milestone.findUnique({
+            where: { id },
+            include: {
+                project: {
+                    include: {
+                        client: true
+                    }
+                },
+                reviews: {
+                    orderBy: { createdAt: 'desc' }
+                }
+            }
+        });
+
+        if (!milestone) {
+            console.log(`[RejectMilestone] Milestone not found: ${id}`);
+            return res.status(404).json({ message: 'Milestone not found' });
+        }
+
+        // Verificar propiedad
+        if (milestone.project.client.userId !== user.userId) {
+            return res.status(403).json({ message: 'Not authorized' });
+        }
+
+        // Validar estado
+        if (milestone.status !== 'READY_FOR_REVIEW') {
+            return res.status(400).json({ message: 'Milestone is not ready for review' });
+        }
+
+        const reviewNumber = milestone.reviews.length + 1;
+
+        // Crear review
+        await prisma.deliverableReview.create({
+            data: {
+                milestoneId: id,
+                reviewerId: user.userId,
+                status: 'REJECTED',
+                comment: comment || '',
+                reviewNumber
+            }
+        });
+
+        // Actualizar milestone
+        const updated = await prisma.milestone.update({
+            where: { id },
+            data: {
+                status: 'CHANGES_REQUESTED',
+                submittedAt: null, // Reset para próximo intento
+                reviewDeadline: null
+            },
+            include: {
+                project: {
+                    include: {
+                        vendor: true,
+                        client: true
+                    }
+                }
+            }
+        });
+
+        // Enviar notificación al vendor
+        try {
+            if ((updated as any).project.vendor) {
+                const warningText = reviewNumber >= 2
+                    ? ` ⚠️ Este es el rechazo #${reviewNumber}. Después de 3 rechazos, podrás abrir una disputa.`
+                    : '';
+
+                await prisma.notification.create({
+                    data: {
+                        userId: (updated as any).project.vendor.userId,
+                        title: `🔄 Cambios solicitados (Intento ${reviewNumber})`,
+                        message: `El cliente ha solicitado cambios en el hito "${updated.title}" del proyecto "${(updated as any).project.title}". Comentario: "${comment || 'Sin comentarios'}"${warningText}`,
+                        type: 'CHANGES_REQUESTED',
+                        entityId: updated.projectId,
+                        entityType: 'project'
+                    }
+                });
+            }
+        } catch (notifError) {
+            console.error('[RejectMilestone] Failed to send notification:', notifError);
+        }
+
+        res.json({
+            success: true,
+            milestone: updated,
+            reviewNumber
+        });
+    } catch (error) {
+        console.error('[RejectMilestone] Error:', error);
+        res.status(500).json({ message: 'Error rejecting milestone' });
+    }
+};
+
+// POST /api/milestones/:id/open-dispute
+// Vendor abre disputa (después de 3+ rechazos)
+export const openDispute = async (req: Request, res: Response) => {
+    try {
+        const { id } = req.params;
+        const { reason } = req.body;
+        const user = req.user;
+
+        // Verificar que es vendor
+        if (!user || user.role !== 'VENDOR') {
+            return res.status(403).json({ message: 'Only vendors can open disputes' });
+        }
+
+        const milestone = await prisma.milestone.findUnique({
+            where: { id },
+            include: {
+                project: {
+                    include: {
+                        vendor: true
+                    }
+                },
+                reviews: {
+                    where: { status: 'REJECTED' },
+                    orderBy: { createdAt: 'desc' }
+                }
+            }
+        });
+
+        if (!milestone) {
+            return res.status(404).json({ message: 'Milestone not found' });
+        }
+
+        // Verificar propiedad
+        if (!milestone.project.vendor || milestone.project.vendor.userId !== user.userId) {
+            return res.status(403).json({ message: 'Not authorized' });
+        }
+
+        // Validar que hay al menos 3 rechazos
+        if (milestone.reviews.length < 3) {
+            return res.status(400).json({ message: 'Dispute can only be opened after 3+ rejections' });
+        }
+
+        // Crear review de disputa
+        await prisma.deliverableReview.create({
+            data: {
+                milestoneId: id,
+                reviewerId: user.userId,
+                status: 'DISPUTED',
+                comment: reason || 'Vendor opened dispute',
+                reviewNumber: milestone.reviews.length + 1
+            }
+        });
+
+        // Actualizar milestone
+        const updated = await prisma.milestone.update({
+            where: { id },
+            data: {
+                status: 'IN_DISPUTE'
+            },
+            include: {
+                project: {
+                    include: {
+                        client: true,
+                        vendor: true
+                    }
+                }
+            }
+        });
+
+        // Notificar al cliente y crear ticket admin
+        try {
+            if ((updated as any).project.client) {
+                await prisma.notification.create({
+                    data: {
+                        userId: (updated as any).project.client.userId,
+                        title: '⚖️ Disputa abierta',
+                        message: `El vendor ha abierto una disputa para el hito "${updated.title}" del proyecto "${(updated as any).project.title}". El equipo de soporte revisará el caso.`,
+                        type: 'DISPUTE_OPENED',
+                        entityId: updated.projectId,
+                        entityType: 'project'
+                    }
+                });
+            }
+
+            // TODO: Crear ticket de soporte para admin
+            // await createAdminTicket(...);
+        } catch (notifError) {
+            console.error('[OpenDispute] Failed to send notification:', notifError);
+        }
+
+        res.json({
+            success: true,
+            milestone: updated
+        });
+    } catch (error) {
+        console.error('[OpenDispute] Error:', error);
+        res.status(500).json({ message: 'Error opening dispute' });
     }
 };

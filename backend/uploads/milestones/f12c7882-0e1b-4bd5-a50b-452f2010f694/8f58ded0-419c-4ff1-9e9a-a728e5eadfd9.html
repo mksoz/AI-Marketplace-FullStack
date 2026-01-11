@@ -1,0 +1,274 @@
+<!DOCTYPE html>
+
+<html class="light" lang="es"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Chat Directo Cliente-Vendor</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200" rel="stylesheet"/>
+<style>
+    .material-symbols-outlined {
+      font-variation-settings:
+      'FILL' 0,
+      'wght' 400,
+      'GRAD' 0,
+      'opsz' 24
+    }
+  </style>
+<script id="tailwind-config">
+    tailwind.config = {
+      darkMode: "class",
+      theme: {
+        extend: {
+          colors: {
+            "primary": "#1313ec",
+            "background-light": "#f6f6f8",
+            "background-dark": "#101022",
+          },
+          fontFamily: {
+            "display": ["Inter", "sans-serif"]
+          },
+          borderRadius: {"DEFAULT": "0.25rem", "lg": "0.5rem", "xl": "0.75rem", "full": "9999px"},
+        },
+      },
+    }
+  </script>
+</head>
+<body class="font-display bg-background-light dark:bg-background-dark text-gray-800 dark:text-gray-200">
+<div class="flex h-screen w-full">
+<!-- Left Column: Chat List -->
+<aside class="flex h-full w-[320px] shrink-0 flex-col border-r border-gray-200 dark:border-gray-800 bg-white dark:bg-background-dark">
+<div class="flex h-full min-h-0 flex-col">
+<!-- Header -->
+<div class="flex items-center justify-between p-4 border-b border-gray-200 dark:border-gray-800">
+<div class="flex items-center gap-3">
+<div class="bg-center bg-no-repeat aspect-square bg-cover rounded-full size-10" data-alt="Avatar of Scale AI" style='background-image: url("https://lh3.googleusercontent.com/aida-public/AB6AXuBiCMVCyGR84P1aUdfalyt3tdtqlCH7F2st9uKxSqU7GM6aqelWcdB1mSt-704mjUgA3D2fDT4imM3TQ6tS6d-vGhqxneRtkck18vJzGkDtpg7SzjG4Mw6fSwju6T66kUoqmFBL6O9uwn5yOjXGkGXL-K2J0899s_6afWUmwRDPZQFtsl7XpMOmdD_TX4e7OBjqt_YbtCsxskUWUEsJys6EE5I6FoR0WWazYeZpTc1XAPEFvL9Tv55YxrfLSNFiea1T4-vd3i406xU");'></div>
+<div class="flex flex-col">
+<h1 class="text-gray-900 dark:text-white text-base font-medium leading-normal">Scale AI</h1>
+<p class="text-gray-500 dark:text-gray-400 text-sm font-normal leading-normal">CLIENTE</p>
+</div>
+</div>
+<button class="p-2 text-gray-500 dark:text-gray-400 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800">
+<span class="material-symbols-outlined text-2xl">more_horiz</span>
+</button>
+</div>
+<!-- Search and Filter -->
+<div class="p-4 border-b border-gray-200 dark:border-gray-800">
+<div class="relative">
+<span class="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-gray-400">search</span>
+<input class="w-full pl-10 pr-4 py-2 bg-background-light dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg focus:ring-primary focus:border-primary text-sm text-gray-900 dark:text-gray-200" placeholder="Buscar mensajes..." type="text"/>
+</div>
+</div>
+<!-- Chat List Items -->
+<nav class="flex-1 overflow-y-auto p-2">
+<!-- Active Chat -->
+<div class="flex gap-4 bg-primary/10 dark:bg-primary/20 px-4 py-3 justify-between rounded-lg">
+<div class="flex items-start gap-4">
+<div class="relative">
+<div class="bg-center bg-no-repeat aspect-square bg-cover rounded-full h-14 w-14" data-alt="Avatar for AI Dev Solutions" style='background-image: url("https://lh3.googleusercontent.com/aida-public/AB6AXuBOWQpSY_5VaKDkGtVVoxt3kXQO6X1U8z6LVTP1q3aGk0g2bP9JIfRLiATcGDQAzhAXiWLt3ao9RWEKUdyDBb28hvidOyLsOPE6SOc-Wbn9jZa7w9AOmZjTS1ci-GZROP6Z7DvrBkM9T3XJX1KqqVMCihRIwbBuytiBEYDqy5-ReIK4hdtnKxOFvFICICAHS6HQP4sZInQnkQAKBJoRf8yPYobAmgnuX_9I40ad3nklmYHlftnws5OrOb6pnxn0ElKRtAZAKDi-0wA");'></div>
+<span class="absolute bottom-0 right-0 block h-3.5 w-3.5 rounded-full bg-green-500 border-2 border-white dark:border-background-dark"></span>
+</div>
+<div class="flex flex-1 flex-col justify-center">
+<p class="text-gray-900 dark:text-white text-base font-medium leading-normal">AI Dev Solutions</p>
+<p class="text-primary dark:text-primary/80 text-sm font-medium leading-normal">Sounds good, I'll review...</p>
+</div>
+</div>
+<div class="shrink-0 flex flex-col items-end gap-1">
+<p class="text-gray-500 dark:text-gray-400 text-xs font-normal">10:42 AM</p>
+<div class="flex size-6 items-center justify-center rounded-full bg-primary text-white text-xs font-bold">2</div>
+</div>
+</div>
+<!-- Other Chats -->
+<div class="flex items-center gap-4 hover:bg-gray-100 dark:hover:bg-gray-800/50 px-4 min-h-[72px] py-2 justify-between rounded-lg cursor-pointer mt-1">
+<div class="flex items-center gap-4">
+<div class="bg-center bg-no-repeat aspect-square bg-cover rounded-full h-14 w-14" data-alt="Avatar for Innovate Labs" style='background-image: url("https://lh3.googleusercontent.com/aida-public/AB6AXuDO__dJ4IcaokTpXbbl41azcKj3f2JgWd_KVncNhDZUMSVby4l2yqygWF3O8A-T4EeaOG62lzkVXQeD6NZMu6XBucNHxCSo0yIFojjOkufHmywRS4YJRQbk8QnFe-rl1rv1jlL9dfj9WvrBsiMYv-aEyTARq6anXq1lIKVOLcal6kIG76pYyjxQf6RT_nV48kkpEMGPnhCaKteOS-IwUi2ESW3DWcjbzTf3R4A4qq4DYcfJIZg7RRQhuG6OjA43qE1Ur4O2rf59X68");'></div>
+<div class="flex flex-col justify-center">
+<p class="text-gray-900 dark:text-white text-base font-medium leading-normal line-clamp-1">Innovate Labs</p>
+<p class="text-gray-500 dark:text-gray-400 text-sm font-normal leading-normal line-clamp-1">Perfect, thank you!</p>
+</div>
+</div>
+<div class="shrink-0"><p class="text-gray-500 dark:text-gray-400 text-xs font-normal leading-normal">Yesterday</p></div>
+</div>
+<div class="flex items-center gap-4 hover:bg-gray-100 dark:hover:bg-gray-800/50 px-4 min-h-[72px] py-2 justify-between rounded-lg cursor-pointer mt-1">
+<div class="flex items-center gap-4">
+<div class="bg-center bg-no-repeat aspect-square bg-cover rounded-full h-14 w-14" data-alt="Avatar for Cognitive Creators" style='background-image: url("https://lh3.googleusercontent.com/aida-public/AB6AXuCsAIobBp9WxxtaAOMpcOjf0yMQcDRPaCcYEv7bXfnmyRRXRoaJjiyiL0Fn8H4959tWuauEBNaLGUgO4VaGb22v9T-7ssQNCneD0HpF6_Px5Jx5zAmroBWGyK5eFY438DDgUoM-HuhhOx9dWD_2_SLNu1mXEwv9LegYmEsy3va-0e4cK17FKlW8WaFquJGg7uDE0vKA2sQuBcK8u5gOgsNAEM2mHlJZD_3p82PCjdkuKGiL-5QSR27fryX2dzU2ShQtNto8lAC4UBQ");'></div>
+<div class="flex flex-col justify-center">
+<p class="text-gray-900 dark:text-white text-base font-medium leading-normal line-clamp-1">Cognitive Creators</p>
+<p class="text-gray-500 dark:text-gray-400 text-sm font-normal leading-normal line-clamp-1">The files are attached.</p>
+</div>
+</div>
+<div class="shrink-0"><p class="text-gray-500 dark:text-gray-400 text-xs font-normal leading-normal">Monday</p></div>
+</div>
+</nav>
+</div>
+</aside>
+<!-- Center Column: Chat Interface -->
+<main class="flex flex-1 flex-col bg-background-light dark:bg-background-dark">
+<!-- Chat Header -->
+<header class="flex items-center justify-between gap-4 p-4 border-b border-gray-200 dark:border-gray-800 bg-white dark:bg-background-dark shadow-sm">
+<div class="flex items-center gap-4">
+<div class="relative">
+<div class="bg-center bg-no-repeat aspect-square bg-cover rounded-full h-12 w-12" data-alt="Avatar for AI Dev Solutions" style='background-image: url("https://lh3.googleusercontent.com/aida-public/AB6AXuBqjTog9zDK19SzAWTyTKT60COygpmDPzUMMGYdGMmS2NjC-wxRd1OijVsvPG39OR3BW5KYepf6YMLHAvvDbAS8juVuJHzeyfjz82KGkITJjyg_Qx5dryYtsCrltBdPcnMkePrUcqwbdfP_RDNJJZ54umdkct2cx0u7U5Jt43bgH9sOt56dXPumWVqL9EB0CyI5KWPJxcbfOK6vixOp2DfPTbILJ6C6yovyu7jiGXeGERSK4mIV8v_HJfZOqcNFZhZ49BUoBDmmUeM");'></div>
+<span class="absolute bottom-0 right-0 block h-3 w-3 rounded-full bg-green-500 border-2 border-white dark:border-background-dark"></span>
+</div>
+<div>
+<h2 class="text-lg font-bold text-gray-900 dark:text-white">AI Dev Solutions</h2>
+<p class="text-sm text-green-600 dark:text-green-400">Online</p>
+</div>
+</div>
+<div class="flex items-center gap-2">
+<button class="flex items-center justify-center gap-2 min-w-[84px] cursor-pointer overflow-hidden rounded-lg h-10 px-4 bg-primary text-white text-sm font-bold leading-normal tracking-[0.015em] hover:bg-primary/90">
+<span class="material-symbols-outlined text-xl">videocam</span>
+<span class="truncate">Iniciar Videollamada</span>
+</button>
+<div class="flex">
+<button class="p-2 text-gray-500 dark:text-gray-400 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800">
+<span class="material-symbols-outlined text-2xl">call</span>
+</button>
+<button class="p-2 text-gray-500 dark:text-gray-400 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800">
+<span class="material-symbols-outlined text-2xl">more_vert</span>
+</button>
+</div>
+</div>
+</header>
+<!-- Message Feed -->
+<div class="flex-1 overflow-y-auto p-6 space-y-6">
+<!-- Date Separator -->
+<div class="text-center text-xs text-gray-500 dark:text-gray-400">Hoy</div>
+<!-- Vendor Message -->
+<div class="flex items-start gap-3">
+<div class="bg-center bg-no-repeat aspect-square bg-cover rounded-full h-8 w-8" data-alt="Avatar for AI Dev Solutions" style='background-image: url("https://lh3.googleusercontent.com/aida-public/AB6AXuBJCztAWIae1tg7MfDv_n0_hJoWLnqvPxPB9qLi97fQ-LxgHHS-0C-L0adXHeGqv35gzuzQOk8GsFibmeU8vpZp5gJDMgqI1WHgd20ioYBo-w1PH-agkz9QRe37LEUQXtXykIjRTXFRbdFNuCq4_0XFsr9nXjR9Hn-u_hT8dufRoErKa5A7Pw65eA1yK84iY0dMU1EldSv7Dql8E119Veip45a7fmfN9gGc_25V6bkqFSYp0JdVck6b-njFvyFwyf1pmVpcaJYsjWI");'></div>
+<div class="flex flex-col items-start max-w-lg">
+<div class="bg-white dark:bg-gray-800 p-3 rounded-lg rounded-tl-none shadow-sm">
+<p class="text-sm text-gray-800 dark:text-gray-200">¡Hola! He revisado el brief del proyecto y tengo algunas ideas iniciales que me gustaría compartir. ¿Tienes un momento para discutirlo?</p>
+</div>
+<span class="text-xs text-gray-400 mt-1">10:40 AM</span>
+</div>
+</div>
+<!-- Client Message (Your Message) -->
+<div class="flex items-start gap-3 justify-end">
+<div class="flex flex-col items-end max-w-lg">
+<div class="bg-primary text-white p-3 rounded-lg rounded-br-none shadow-sm">
+<p class="text-sm">Hola, claro. Estoy disponible ahora. ¡Adelante!</p>
+</div>
+<span class="text-xs text-gray-400 mt-1">10:41 AM</span>
+</div>
+<div class="bg-center bg-no-repeat aspect-square bg-cover rounded-full h-8 w-8" data-alt="Avatar of Scale AI" style='background-image: url("https://lh3.googleusercontent.com/aida-public/AB6AXuBcgRwyqigyYu2VCylmcE701CCYGrsPB59bhUL2R8LzUMBf4EgSwuESInbqfKedjSnWL_ZQjx9darV5TIjGlXuZKKMmLotKqGVs05vzUrp7CN8mbNFvNQSxvOUnG61zwUIcR9CS9nmTaxxtwwxK3NfgJbjhA6VqF5arZd7bFvZbQnHWGeAeab-7BAjT3tXImKe7h9rHHHcNoIOe-nSOxhHMxafvooYuW_5Zn4iM63bDK-OWphe8uFXo2HzDiPUqU_JmiSmdATh5ugc");'></div>
+</div>
+<!-- Vendor Message -->
+<div class="flex items-start gap-3">
+<div class="bg-center bg-no-repeat aspect-square bg-cover rounded-full h-8 w-8" data-alt="Avatar for AI Dev Solutions" style='background-image: url("https://lh3.googleusercontent.com/aida-public/AB6AXuCwiU5nDsC8ZxDBl1xV3hNSE80VR5jKTM5MAFclD1f8uI_i7uQ6TeN41YP5SlRhvDULZ-7M5mbkcZT484bIs2OkTg69t3-lz_K_ClD213xgPHNXQaYWqT3kPpbyCLjpcCVfIe2vPO3AZ1pfjVi9M8r-oCqh2rp9SSa9olADf9G2b9ignMMOAXr4b5tt5AcgVdt90VS4vV_SYol6xVYRCpukAbMB9NItt_R4ZvgaZTqjZf7qQNg-tuGiQI2WGRMjlF3MW26ebpWQJHc");'></div>
+<div class="flex flex-col items-start max-w-lg">
+<div class="bg-white dark:bg-gray-800 p-3 rounded-lg rounded-tl-none shadow-sm">
+<p class="text-sm text-gray-800 dark:text-gray-200">Genial. Te he preparado un borrador inicial del contrato de descubrimiento. Lo puedes encontrar en la pestaña de 'Acuerdos'. Incluye los hitos y entregables que propongo.</p>
+</div>
+<span class="text-xs text-gray-400 mt-1">10:42 AM</span>
+</div>
+</div>
+<!-- Action Notification Banner -->
+<div class="bg-yellow-100 dark:bg-yellow-900/50 border-l-4 border-yellow-500 text-yellow-800 dark:text-yellow-200 p-4 rounded-lg flex items-center gap-3">
+<span class="material-symbols-outlined">info</span>
+<p class="text-sm font-medium">Tienes un borrador de contrato pendiente de revisión.</p>
+<a class="ml-auto text-sm font-bold text-yellow-900 dark:text-yellow-100 underline" href="#">Ver Borrador</a>
+</div>
+</div>
+<!-- Message Input -->
+<footer class="p-4 bg-white dark:bg-background-dark border-t border-gray-200 dark:border-gray-800">
+<div class="flex items-center gap-4">
+<button class="p-2 text-gray-500 dark:text-gray-400 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800">
+<span class="material-symbols-outlined">add_circle</span>
+</button>
+<div class="relative flex-1">
+<input class="w-full pl-4 pr-24 py-3 bg-background-light dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg focus:ring-primary focus:border-primary text-sm text-gray-900 dark:text-gray-200" placeholder="Escribe tu mensaje..." type="text"/>
+<div class="absolute right-2 top-1/2 -translate-y-1/2 flex items-center gap-1">
+<button class="p-2 text-gray-500 dark:text-gray-400 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-700">
+<span class="material-symbols-outlined">attach_file</span>
+</button>
+<button class="p-2 text-gray-500 dark:text-gray-400 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-700">
+<span class="material-symbols-outlined">mood</span>
+</button>
+</div>
+</div>
+<button class="flex items-center justify-center size-11 bg-primary text-white rounded-lg hover:bg-primary/90">
+<span class="material-symbols-outlined">send</span>
+</button>
+</div>
+</footer>
+</main>
+<!-- Right Column: Collaboration Hub -->
+<aside class="flex h-full w-[360px] shrink-0 flex-col border-l border-gray-200 dark:border-gray-800 bg-white dark:bg-background-dark">
+<div class="flex h-full min-h-0 flex-col">
+<!-- Tabs -->
+<div class="border-b border-gray-200 dark:border-gray-800">
+<nav aria-label="Tabs" class="flex -mb-px">
+<a aria-current="page" class="w-1/2 py-4 px-1 text-center border-b-2 font-medium text-sm text-primary border-primary" href="#">
+              Acuerdos
+            </a>
+<a class="w-1/2 py-4 px-1 text-center border-b-2 font-medium text-sm text-gray-500 dark:text-gray-400 border-transparent hover:text-gray-700 dark:hover:text-gray-200 hover:border-gray-300 dark:hover:border-gray-700" href="#">
+              Archivos Compartidos
+            </a>
+</nav>
+</div>
+<!-- Agreements Content -->
+<div class="flex-1 overflow-y-auto p-4 space-y-4">
+<div class="flex flex-col gap-4">
+<h3 class="text-lg font-bold text-gray-900 dark:text-white">Acuerdos Activos</h3>
+<div class="border border-gray-200 dark:border-gray-700 rounded-lg p-4 bg-background-light dark:bg-gray-800/50">
+<div class="flex justify-between items-start">
+<div>
+<p class="font-semibold text-gray-900 dark:text-white">Contrato de Descubrimiento</p>
+<p class="text-sm text-gray-500 dark:text-gray-400">Versión 1.0</p>
+</div>
+<span class="text-xs font-medium bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200 px-2.5 py-1 rounded-full">Pendiente de Revisión</span>
+</div>
+<div class="mt-4 flex items-center justify-between text-sm text-gray-500 dark:text-gray-400">
+<span>Creado: 15 Mayo, 2024</span>
+<button class="p-1 rounded-full hover:bg-gray-200 dark:hover:bg-gray-700">
+<span class="material-symbols-outlined text-base">more_horiz</span>
+</button>
+</div>
+</div>
+<div class="border border-gray-200 dark:border-gray-700 rounded-lg p-4 bg-background-light dark:bg-gray-800/50">
+<div class="flex justify-between items-start">
+<div>
+<p class="font-semibold text-gray-900 dark:text-white">Acuerdo de Confidencialidad</p>
+<p class="text-sm text-gray-500 dark:text-gray-400">NDA-2024-04</p>
+</div>
+<span class="text-xs font-medium bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200 px-2.5 py-1 rounded-full">Aprobado</span>
+</div>
+<div class="mt-4 flex items-center justify-between text-sm text-gray-500 dark:text-gray-400">
+<span>Firmado: 12 Abril, 2024</span>
+<button class="p-1 rounded-full hover:bg-gray-200 dark:hover:bg-gray-700">
+<span class="material-symbols-outlined text-base">more_horiz</span>
+</button>
+</div>
+</div>
+<h3 class="text-lg font-bold text-gray-900 dark:text-white pt-4">Hitos del Proyecto</h3>
+<ul class="space-y-3">
+<li class="flex items-center gap-3">
+<span class="material-symbols-outlined text-green-500">check_circle</span>
+<span class="text-sm text-gray-600 dark:text-gray-300">Entrega de Wireframes</span>
+</li>
+<li class="flex items-center gap-3">
+<span class="material-symbols-outlined text-blue-500">pending</span>
+<span class="text-sm font-medium text-gray-800 dark:text-gray-100">Desarrollo del Prototipo</span>
+</li>
+<li class="flex items-center gap-3">
+<span class="material-symbols-outlined text-gray-400">radio_button_unchecked</span>
+<span class="text-sm text-gray-600 dark:text-gray-300">Pruebas de Usuario</span>
+</li>
+</ul>
+</div>
+</div>
+<!-- Footer CTA -->
+<div class="p-4 border-t border-gray-200 dark:border-gray-800">
+<button class="w-full flex items-center justify-center gap-2 min-w-[84px] cursor-pointer overflow-hidden rounded-lg h-10 px-4 bg-primary/20 text-primary text-sm font-bold leading-normal tracking-[0.015em] hover:bg-primary/30">
+<span class="material-symbols-outlined text-xl">add</span>
+<span class="truncate">Crear Borrador de Contrato</span>
+</button>
+</div>
+</div>
+</aside>
+</div>
+</body></html>

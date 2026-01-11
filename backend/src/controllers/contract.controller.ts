@@ -1,6 +1,7 @@
 
 import { Request, Response } from 'express';
 import { PrismaClient, ProjectStatus } from '@prisma/client';
+import { notificationService } from '../services/notification.service';
 
 const prisma = new PrismaClient();
 
@@ -258,16 +259,27 @@ export const signContract = async (req: Request, res: Response) => {
             return res.status(500).json({ message: "Error fetching updated contract" });
         }
 
-        // Send Single Signature Notification (if not fully signed yet)
+        // Send Single Signature Notification using notificationService
         if (notificationTargetUserId && updatedContract.status !== 'SIGNED') {
-            await prisma.notification.create({
-                data: {
-                    userId: notificationTargetUserId,
-                    title: notificationTitle,
-                    message: notificationMessage,
-                    type: 'INFO'
-                }
-            });
+            try {
+                const signerName = user.role === 'CLIENT'
+                    ? (updatedContract.project.client.companyName || 'Client')
+                    : (updatedContract.project.vendor?.companyName || 'Vendor');
+
+                await notificationService.notifyContractSigned(
+                    notificationTargetUserId,
+                    {
+                        contractId: contract.id,
+                        projectId: updatedContract.projectId,
+                        projectTitle: updatedContract.project.title,
+                        signerUserId: user.userId,
+                        signerName,
+                        signerRole: user.role
+                    }
+                );
+            } catch (notifError) {
+                console.error('Failed to send contract signature notification:', notifError);
+            }
         }
 
         // Check if both signed -> Move Project to ACCEPTED
@@ -279,19 +291,19 @@ export const signContract = async (req: Request, res: Response) => {
                 data: { status: 'SIGNED' }
             });
 
-            // Transition Project to ACCEPTED
+            // Transition Project to PENDING_SETUP (awaiting vendor configuration)
             await prisma.project.update({
                 where: { id: contract.projectId },
-                data: { status: ProjectStatus.ACCEPTED }
+                data: { status: ProjectStatus.PENDING_SETUP }
             });
 
             // Notify BOTH of Success
             await prisma.notification.create({
                 data: {
                     userId: contract.project.client.userId,
-                    title: "¡Proyecto Aceptado!",
-                    message: `Ambas partes han firmado el contrato de "${contract.project.title}". El proyecto comienza ahora.`,
-                    type: 'SUCCESS'
+                    title: "¡Contrato Firmado!",
+                    message: `Ambas partes han firmado el contrato de "${contract.project.title}". El vendor configurará el proyecto próximamente.`,
+                    type: 'SYSTEM_SUCCESS'
                 }
             });
 
@@ -299,9 +311,9 @@ export const signContract = async (req: Request, res: Response) => {
                 await prisma.notification.create({
                     data: {
                         userId: contract.project.vendor.userId,
-                        title: "¡Proyecto Aceptado!",
-                        message: `Ambas partes han firmado el contrato de "${contract.project.title}". ¡A trabajar!`,
-                        type: 'SUCCESS'
+                        title: "⚙️ Configura tu Proyecto",
+                        message: `Has firmado el contrato de "${contract.project.title}". Por favor, configura los hitos y fechas del proyecto para comenzar.`,
+                        type: 'ACTION_REQUIRED'
                     }
                 });
             }

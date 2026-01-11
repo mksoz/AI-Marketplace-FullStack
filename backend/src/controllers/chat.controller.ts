@@ -1,6 +1,7 @@
 
 import { Request, Response } from 'express';
 import { PrismaClient } from '@prisma/client';
+import notificationService from '../services/notification.service';
 
 const prisma = new PrismaClient();
 
@@ -142,6 +143,43 @@ export const sendMessage = async (req: Request, res: Response) => {
             include: { sender: { select: { id: true, email: true, role: true } } }
         });
 
+        // Notify other participants
+        try {
+            const convo = await prisma.conversation.findUnique({
+                where: { id: conversation.id },
+                include: {
+                    participants: true,
+                    project: true
+                }
+            });
+
+            if (convo) {
+                const sender = await prisma.user.findUnique({
+                    where: { id: user.userId },
+                    include: { vendorProfile: true, clientProfile: true }
+                });
+                const senderName = sender?.vendorProfile?.companyName || sender?.clientProfile?.companyName || sender?.email || 'Usuario';
+
+                for (const participant of convo.participants) {
+                    if (participant.id !== user.userId) {
+                        await notificationService.notifyMessageReceived(
+                            participant.id,
+                            {
+                                messageId: message.id,
+                                conversationId: conversation.id,
+                                senderId: user.userId,
+                                senderName,
+                                recipientRole: participant.role.toLowerCase(),
+                                preview: content.substring(0, 100)
+                            }
+                        );
+                    }
+                }
+            }
+        } catch (notifError) {
+            console.error('Failed to send notification:', notifError);
+        }
+
         res.json(message);
     } catch (error) {
         console.error(error);
@@ -205,5 +243,35 @@ export const deleteConversation = async (req: Request, res: Response) => {
     } catch (error) {
         console.error(error);
         res.status(500).json({ message: "Error deleting chat" });
+    }
+};
+
+// Get Unread Messages Count
+export const getUnreadMessagesCount = async (req: Request, res: Response) => {
+    try {
+        const user = req.user;
+        if (!user) return res.status(401).json({ message: 'Unauthorized' });
+
+        // Count unread messages for the current user
+        const count = await prisma.message.count({
+            where: {
+                conversation: {
+                    participants: {
+                        some: {
+                            id: user.userId
+                        }
+                    }
+                },
+                senderId: {
+                    not: user.userId
+                },
+                isRead: false
+            }
+        });
+
+        res.json({ count });
+    } catch (error: any) {
+        console.error('Get unread messages count error:', error);
+        res.status(500).json({ message: error.message });
     }
 };

@@ -1,75 +1,95 @@
 import { Request, Response } from 'express';
-import { PrismaClient } from '@prisma/client';
+import notificationService from '../services/notification.service';
+import { NotificationType } from '@prisma/client';
 
-const prisma = new PrismaClient();
-
-// Get notification preferences
-export const getNotificationPreferences = async (req: Request, res: Response) => {
+export const getNotifications = async (req: Request, res: Response) => {
     try {
-        const userId = req.user!.userId;
+        const user = req.user;
+        if (!user) return res.status(401).json({ message: 'Unauthorized' });
 
-        let preferences = await prisma.notificationPreference.findUnique({
-            where: { userId }
-        });
+        const { limit, offset, isRead, types } = req.query;
 
-        // Create default preferences if none exist
-        if (!preferences) {
-            preferences = await prisma.notificationPreference.create({
-                data: { userId }
-            });
-        }
+        const options: any = {};
+        if (limit) options.limit = parseInt(limit as string);
+        if (offset) options.offset = parseInt(offset as string);
+        if (isRead === 'true') options.isRead = true;
+        else if (isRead === 'false') options.isRead = false;
+        if (types) options.types = (types as string).split(',') as NotificationType[];
 
-        res.json(preferences);
+        const notifications = await notificationService.getUserNotifications(user.userId, options);
+
+        res.json(notifications);
     } catch (error: any) {
-        console.error('Error fetching notification preferences:', error);
-        res.status(500).json({ message: error.message || 'Failed to fetch preferences' });
+        console.error('Get notifications error:', error);
+        res.status(500).json({ message: error.message });
     }
 };
 
-// Update notification preferences
-export const updateNotificationPreferences = async (req: Request, res: Response) => {
+export const getUnreadCount = async (req: Request, res: Response) => {
     try {
-        const userId = req.user!.userId;
-        const {
-            emailEnabled,
-            inAppEnabled,
-            smsEnabled,
-            projectNotifications,
-            messageNotifications,
-            paymentNotifications,
-            systemNotifications,
-            dailyDigest,
-            weeklyDigest,
-            quietHoursStart,
-            quietHoursEnd
-        } = req.body;
+        const user = req.user;
+        if (!user) return res.status(401).json({ message: 'Unauthorized' });
 
-        // Build update data
-        const updateData: any = {};
-        if (emailEnabled !== undefined) updateData.emailEnabled = emailEnabled;
-        if (inAppEnabled !== undefined) updateData.inAppEnabled = inAppEnabled;
-        if (smsEnabled !== undefined) updateData.smsEnabled = smsEnabled;
-        if (projectNotifications !== undefined) updateData.projectNotifications = projectNotifications;
-        if (messageNotifications !== undefined) updateData.messageNotifications = messageNotifications;
-        if (paymentNotifications !== undefined) updateData.paymentNotifications = paymentNotifications;
-        if (systemNotifications !== undefined) updateData.systemNotifications = systemNotifications;
-        if (dailyDigest !== undefined) updateData.dailyDigest = dailyDigest;
-        if (weeklyDigest !== undefined) updateData.weeklyDigest = weeklyDigest;
-        if (quietHoursStart !== undefined) updateData.quietHoursStart = quietHoursStart;
-        if (quietHoursEnd !== undefined) updateData.quietHoursEnd = quietHoursEnd;
-
-        const preferences = await prisma.notificationPreference.upsert({
-            where: { userId },
-            update: updateData,
-            create: {
-                userId,
-                ...updateData
-            }
-        });
-
-        res.json(preferences);
+        const count = await notificationService.getUnreadCount(user.userId);
+        res.json({ count });
     } catch (error: any) {
-        console.error('Error updating notification preferences:', error);
-        res.status(500).json({ message: error.message || 'Failed to update preferences' });
+        console.error('Get unread count error:', error);
+        res.status(500).json({ message: error.message });
+    }
+};
+
+export const markAsRead = async (req: Request, res: Response) => {
+    try {
+        const user = req.user;
+        if (!user) return res.status(401).json({ message: 'Unauthorized' });
+
+        const { id } = req.params;
+        const notification = await notificationService.markAsRead(id, user.userId);
+
+        res.json(notification);
+    } catch (error: any) {
+        console.error('Mark as read error:', error);
+        res.status(500).json({ message: error.message });
+    }
+};
+
+export const markAllAsRead = async (req: Request, res: Response) => {
+    try {
+        const user = req.user;
+        if (!user) return res.status(401).json({ message: 'Unauthorized' });
+
+        const count = await notificationService.markAllAsRead(user.userId);
+        res.json({ count, message: 'All notifications marked as read' });
+    } catch (error: any) {
+        console.error('Mark all as read error:', error);
+        res.status(500).json({ message: error.message });
+    }
+};
+
+export const deleteNotification = async (req: Request, res: Response) => {
+    try {
+        const user = req.user;
+        if (!user) return res.status(401).json({ message: 'Unauthorized' });
+
+        const { id } = req.params;
+        await notificationService.deleteNotification(id, user.userId);
+
+        res.json({ message: 'Notification deleted' });
+    } catch (error: any) {
+        console.error('Delete notification error:', error);
+        res.status(500).json({ message: error.message });
+    }
+};
+
+export const deleteAllRead = async (req: Request, res: Response) => {
+    try {
+        const user = req.user;
+        if (!user) return res.status(401).json({ message: 'Unauthorized' });
+
+        const count = await notificationService.deleteAllRead(user.userId);
+        res.json({ count, message: 'All read notifications deleted' });
+    } catch (error: any) {
+        console.error('Delete all read error:', error);
+        res.status(500).json({ message: error.message });
     }
 };

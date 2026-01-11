@@ -2,6 +2,9 @@ import React, { useState, useEffect } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import Header from './Header';
 import FAQWidget from './FAQWidget';
+import NotificationBadge from './notifications/NotificationBadge';
+import { useUnreadCount } from '../hooks/useUnreadCount';
+import { useUnreadMessagesCount } from '../hooks/useUnreadMessagesCount';
 
 interface VendorLayoutProps {
   children: React.ReactNode;
@@ -11,6 +14,8 @@ interface VendorLayoutProps {
 const VendorLayout: React.FC<VendorLayoutProps> = ({ children, fullHeight = false }) => {
   const location = useLocation();
   const navigate = useNavigate();
+  const { count: unreadCount } = useUnreadCount();
+  const { count: unreadMessagesCount } = useUnreadMessagesCount();
 
   const [isSidebarOpen, setIsSidebarOpen] = useState(() => window.innerWidth >= 768);
 
@@ -181,7 +186,16 @@ const VendorLayout: React.FC<VendorLayoutProps> = ({ children, fullHeight = fals
                             `}
                   >
                     <div className="flex items-center gap-3">
-                      <span className={`material-symbols-outlined text-[20px] ${isItemActive ? 'filled' : ''}`}>{item.icon}</span>
+                      <div className="relative">
+                        <span
+                          className={`material-symbols-outlined text-[20px] ${isItemActive ? 'filled' : ''} ${item.path === '/vendor/notifications' && unreadCount > 0
+                              ? 'animate-pulse text-red-500'
+                              : ''
+                            }`}
+                        >
+                          {item.icon}
+                        </span>
+                      </div>
                       {item.label}
                     </div>
                   </Link>

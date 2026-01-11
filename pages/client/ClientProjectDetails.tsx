@@ -5,8 +5,9 @@ import api from '../../services/api';
 import ProjectFilesManager from '../../components/ProjectFilesManager';
 import IncidentManager from '../../components/IncidentManager';
 import FinancialsManager from '../../components/FinancialsManager';
-import ClientProjectMilestones from './ClientProjectMilestones';
+import ClientProjectMilestones from './ClientProjectMilestonesV2';
 import ClientProjectFiles from './ClientProjectFiles';
+
 
 const ClientProjectDetails: React.FC = () => {
     const { id } = useParams();
@@ -28,22 +29,22 @@ const ClientProjectDetails: React.FC = () => {
     const [feedbackComments, setFeedbackComments] = useState<Record<string, string>>({});
     const [expandedComments, setExpandedComments] = useState<Record<string, boolean>>({});
 
+    const fetchProject = async (showLoading = true) => {
+        if (!id) return;
+
+        if (showLoading) setLoading(true);
+        try {
+            const res = await api.get(`/projects/${id}/tracking`);
+            setProject(res.data);
+        } catch (error) {
+            console.error('Error fetching project:', error);
+            if (showLoading) setProject(null);
+        } finally {
+            if (showLoading) setLoading(false);
+        }
+    };
+
     useEffect(() => {
-        const fetchProject = async () => {
-            if (!id) return;
-
-            setLoading(true);
-            try {
-                const res = await api.get(`/projects/${id}/tracking`);
-                setProject(res.data);
-            } catch (error) {
-                console.error('Error fetching project:', error);
-                setProject(null);
-            } finally {
-                setLoading(false);
-            }
-        };
-
         fetchProject();
     }, [id]);
 
@@ -149,6 +150,8 @@ const ClientProjectDetails: React.FC = () => {
                     </div>
                 </div>
 
+
+
                 {/* Tabs */}
                 <div className="border-b border-gray-200">
                     <nav className="-mb-px flex space-x-8 overflow-x-auto">
@@ -166,11 +169,13 @@ const ClientProjectDetails: React.FC = () => {
                                 <span className="material-symbols-outlined text-lg">
                                     {tab === 'dashboard' ? 'dashboard' :
                                         tab === 'files' ? 'folder' :
-                                            tab === 'financials' ? 'payments' : 'bug_report'}
+                                            tab === 'financials' ? 'payments' :
+                                                tab === 'incidents' ? 'bug_report' : 'settings'}
                                 </span>
                                 {tab === 'dashboard' ? 'Visión General' :
-                                    tab === 'files' ? 'Archivos y Repositorio' :
-                                        tab === 'financials' ? 'Finanzas' : 'Incidencias'}
+                                    tab === 'files' ? 'Archivos' :
+                                        tab === 'financials' ? 'Pagos' :
+                                            tab === 'incidents' ? 'Incidencias' : 'Configuración'}
                             </button>
                         ))}
                     </nav>
@@ -209,14 +214,7 @@ const ClientProjectDetails: React.FC = () => {
                                     <div className="max-h-[500px] overflow-y-auto pr-2 custom-scrollbar">
                                         <ClientProjectMilestones
                                             project={project}
-                                            onUpdate={async () => {
-                                                try {
-                                                    const res = await api.get(`/projects/${id}/tracking`);
-                                                    setProject(res.data);
-                                                } catch (error) {
-                                                    console.error('Error refreshing project:', error);
-                                                }
-                                            }}
+                                            onUpdate={() => fetchProject(false)}
                                         />
                                     </div>
                                 </div>
@@ -254,8 +252,15 @@ const ClientProjectDetails: React.FC = () => {
                     )}
 
                     {activeTab === 'files' && (
-                        <ClientProjectFiles project={project} userRole="CLIENT" />
+                        <ClientProjectFiles
+                            project={project}
+                            userRole="CLIENT"
+                            onUpdate={() => fetchProject(false)}
+                            onGoToRoadmap={() => handleTabChange('dashboard')}
+                        />
                     )}
+
+
 
                     {activeTab === 'financials' && (
                         <div className="space-y-8">

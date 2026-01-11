@@ -1,7 +1,7 @@
 
 import { Router } from 'express';
 import { authenticateJWT, authorizeRole } from '../middlewares/auth.middleware';
-import { getProjectChat, sendMessage, getMyConversations, archiveConversation, deleteConversation } from '../controllers/chat.controller';
+import { getProjectChat, sendMessage, getMyConversations, archiveConversation, deleteConversation, getUnreadMessagesCount } from '../controllers/chat.controller';
 
 const router = Router();
 
@@ -11,6 +11,7 @@ router.use(authenticateJWT);
 // The controller checks participation (or we should add middleware for that, but keeping it simple)
 
 router.get('/', getMyConversations); // List all conversations
+router.get('/unread-count', getUnreadMessagesCount); // Get unread messages count
 router.get('/:projectId', getProjectChat); // Get conversation for a project
 router.post('/:projectId/messages', sendMessage); // Send message to a project's conversation
 router.post('/:id/archive', archiveConversation); // Archive conversation

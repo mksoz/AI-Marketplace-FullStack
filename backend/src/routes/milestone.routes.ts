@@ -1,22 +1,32 @@
 import { Router } from 'express';
+import { authenticateJWT } from '../middlewares/auth.middleware';
 import {
-    completeMilestone,
+    startMilestone,
     requestPayment,
-    getProjectPaymentRequests,
-    approvePaymentRequest,
-    rejectPaymentRequest
+    approveMilestone,
+    rejectMilestone,
+    openDispute
 } from '../controllers/milestone.controller';
-import { authenticateJWT as authenticate } from '../middlewares/auth.middleware';
 
 const router = Router();
+console.log('[Routes] Milestone routes loaded');
 
-// Milestone completion and payment requests
-router.post('/:id/complete', authenticate, completeMilestone);
-router.post('/:id/request-payment', authenticate, requestPayment);
+// All routes require authentication
+router.use(authenticateJWT);
 
-// Payment requests (by project)
-router.get('/payment-requests/project/:projectId', authenticate, getProjectPaymentRequests);
-router.post('/payment-requests/:id/approve', authenticate, approvePaymentRequest);
-router.post('/payment-requests/:id/reject', authenticate, rejectPaymentRequest);
+// Vendor: Start milestone
+router.post('/:id/start', startMilestone);
+
+// Vendor: Request payment approval
+router.post('/:id/request-payment', requestPayment);
+
+// Client: Approve deliverables
+router.post('/:id/approve', approveMilestone);
+
+// Client: Reject deliverables
+router.post('/:id/reject', rejectMilestone);
+
+// Vendor: Open dispute (after 3+ rejections)
+router.post('/:id/open-dispute', openDispute);
 
 export default router;

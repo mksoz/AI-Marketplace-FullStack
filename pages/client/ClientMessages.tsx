@@ -109,7 +109,7 @@ const ClientMessages: React.FC = () => {
       if (!contentToSend.trim() || !selectedChat) return;
       try {
          if (!customContent) setInputText('');
-         await api.post(`/ chats / ${selectedChat.projectId}/messages`, { content: contentToSend });
+         await api.post(`/chats/${selectedChat.projectId}/messages`, { content: contentToSend });
          fetchMessages(selectedChat.projectId);
       } catch (err) {
          console.error("Error sending message", err);
@@ -265,7 +265,7 @@ const ClientMessages: React.FC = () => {
             </aside>
 
             {/* MIDDLE COLUMN: Chat Interface */}
-            <main className={`flex-1 flex flex-col bg-[#efeae2] min-w-0 h-full relative ${showChatOnMobile ? 'fixed inset-0 z-[60] bg-white md:relative md:inset-auto md:z-10' : 'hidden md:flex'}`}>
+            <main className={`flex-1 flex flex-col bg-[#e5ddd5] min-w-0 h-full relative ${showChatOnMobile ? 'fixed inset-0 z-[60] bg-white md:relative md:inset-auto md:z-10' : 'hidden md:flex'}`}>
 
                {/* WhatsApp Wallpaper Pattern Overlay */}
                <div className="absolute inset-0 opacity-[0.05] pointer-events-none bg-[url('https://user-images.githubusercontent.com/15075759/28719144-86dc0f70-73b1-11e7-911d-60d70fcded21.png')]"></div>

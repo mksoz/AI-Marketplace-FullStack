@@ -7,9 +7,11 @@ import ProjectFilesManager from '../../components/ProjectFilesManager';
 import IncidentManager from '../../components/IncidentManager';
 import FinancialsManager from '../../components/FinancialsManager';
 import ClientProjectMilestones from '../client/ClientProjectMilestones'; // Reusing visual component based on request
-import VendorRoadmapEditor from '../../components/VendorRoadmapEditor';
+// import EscrowBanner from '../../components/escrow/EscrowBanner'; // Phase 2
+import VendorRoadmapEditor from '../../components/VendorRoadmapEditorV2';
 import { getMockProject } from '../../services/mockData';
 import ClientProjectFiles from '../client/ClientProjectFiles';
+import { useToast } from '../../contexts/ToastContext';
 
 const VendorProjectDetails: React.FC = () => {
     const { id } = useParams();
@@ -27,23 +29,24 @@ const VendorProjectDetails: React.FC = () => {
     // Roadmap Edit State
     const [isRoadmapEditing, setIsRoadmapEditing] = useState(false);
     const roadmapEditorRef = React.useRef<any>(null);
+    const { showToast } = useToast();
+
+    const fetchProject = async (showLoading = true) => {
+        if (!id) return;
+
+        if (showLoading) setLoading(true);
+        try {
+            const res = await api.get(`/projects/${id}/tracking`);
+            setProject(res.data);
+        } catch (error) {
+            console.error('Error fetching project:', error);
+            if (showLoading) setProject(null);
+        } finally {
+            if (showLoading) setLoading(false);
+        }
+    };
 
     useEffect(() => {
-        const fetchProject = async () => {
-            if (!id) return;
-
-            setLoading(true);
-            try {
-                const res = await api.get(`/projects/${id}/tracking`);
-                setProject(res.data);
-            } catch (error) {
-                console.error('Error fetching project:', error);
-                setProject(null);
-            } finally {
-                setLoading(false);
-            }
-        };
-
         fetchProject();
     }, [id]);
 
@@ -192,6 +195,9 @@ const VendorProjectDetails: React.FC = () => {
                                     </div>
                                 </div>
 
+                                {/* Escrow Banner */}
+                                {/* EscrowBanner - Phase 2 */}
+
                                 {/* Roadmap */}
                                 <div className="bg-white p-6 rounded-2xl border border-gray-200 shadow-sm relative">
                                     <div className="flex justify-between items-center mb-6 sticky top-0 bg-white z-10 pb-2 border-b border-transparent">
@@ -259,7 +265,7 @@ const VendorProjectDetails: React.FC = () => {
                                                     }
                                                 } catch (error) {
                                                     console.error('Error updating roadmap:', error);
-                                                    alert('Error al actualizar el roadmap. Por favor intenta de nuevo.');
+                                                    showToast('Error al actualizar el roadmap. Por favor intenta de nuevo.', 'error');
                                                     throw error; // Prevent modal from showing success
                                                 }
                                             }}
@@ -300,7 +306,7 @@ const VendorProjectDetails: React.FC = () => {
                     )}
 
                     {activeTab === 'files' && (
-                        <ClientProjectFiles project={project} userRole="VENDOR" />
+                        <ClientProjectFiles project={project} userRole="VENDOR" onUpdate={() => fetchProject(false)} />
                     )}
 
                     {activeTab === 'financials' && (

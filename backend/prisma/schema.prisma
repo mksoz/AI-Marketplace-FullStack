@@ -20,7 +20,8 @@ enum ProjectStatus {
   PROPOSED // New: Client proposed to Vendor
   CONTACTED // New: Vendor acknowledged/contacted
   IN_NEGOTIATION // New: Vendor replied/countered
-  ACCEPTED // New: Vendor accepted (Ready to start)
+  ACCEPTED // New: Contract signed, pending vendor setup
+  PENDING_SETUP // New: Awaiting vendor to configure milestones
   DECLINED // New: Vendor declined
   IN_PROGRESS
   COMPLETED
@@ -57,17 +58,24 @@ model User {
   conversations          Conversation[]
   messages               Message[]
   notifications          Notification[]
+  triggeredNotifications Notification[]          @relation("NotificationActor")
   notificationPreference NotificationPreference?
 
   reportedIncidents Incident[]      @relation("Reporter")
   paymentMethods    PaymentMethod[]
   sessions          Session[]
   auditLogs         AuditLog[]
-  
+
   // Calendar Relations
-  createdEvents     CalendarEvent[] @relation("EventCreator")
-  attendingEvents   EventAttendee[]
-  reminders         EventReminder[]
+  createdEvents   CalendarEvent[] @relation("EventCreator")
+  attendingEvents EventAttendee[]
+  reminders       EventReminder[]
+
+  // Admin Relations
+  adminProfile AdminProfile?
+
+  // Review Relation
+  deliverableReviews DeliverableReview[]
 }
 
 model ClientProfile {
@@ -90,15 +98,18 @@ model ClientProfile {
   legalName         String?
   monthlySpendLimit Decimal?
 
-  projects     Project[]
-  savedVendors SavedVendor[]
-  account      ClientAccount?
+  projects       Project[]
+  savedVendors   SavedVendor[]
+  account        ClientAccount?
   calendarEvents CalendarEvent[] @relation("ClientEvents")
 }
 
 enum MilestoneStatus {
   PENDING
   IN_PROGRESS
+  READY_FOR_REVIEW
+  CHANGES_REQUESTED
+  IN_DISPUTE
   COMPLETED
   PAID
 }
@@ -163,144 +174,147 @@ model VendorProfile {
   templates RequirementTemplate[] @relation("VendorTemplates")
 
   // Projects where this vendor is directly assigned/requested
-  projects       Project[]      @relation("VendorProjects")
+  projects       Project[]       @relation("VendorProjects")
   savedByClients SavedVendor[]
   account        VendorAccount?
   calendarEvents CalendarEvent[] @relation("VendorEvents")
+
+  // Admin Relations
+  reports VendorReport[]
 }
 
 model GitHubSync {
-  id        String   @id @default(uuid())
-  projectId String   @unique
-  project   Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
-  
+  id        String  @id @default(uuid())
+  projectId String  @unique
+  project   Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
   // Repository Info
-  repoUrl       String  // Full GitHub URL
-  repoOwner     String  // e.g., "octocat"
-  repoName      String  // e.g., "Hello-World"
-  repoBranch    String  @default("main")
-  
+  repoUrl    String // Full GitHub URL
+  repoOwner  String // e.g., "octocat"
+  repoName   String // e.g., "Hello-World"
+  repoBranch String @default("main")
+
   // Sync Status
-  lastSyncAt    DateTime?
-  syncStatus    String   @default("ACTIVE") // ACTIVE, ERROR, DISCONNECTED
-  syncError     String?
-  
+  lastSyncAt DateTime?
+  syncStatus String    @default("ACTIVE") // ACTIVE, ERROR, DISCONNECTED
+  syncError  String?
+
   // GitHub Metadata
-  repoStars     Int      @default(0)
-  repoForks     Int      @default(0)
-  repoLanguage  String?
+  repoStars      Int     @default(0)
+  repoForks      Int     @default(0)
+  repoLanguage   String?
   repoOpenIssues Int     @default(0)
-  
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
-  
+
   commits GitHubCommit[]
 }
 
 model GitHubCommit {
-  id          String   @id @default(uuid())
-  syncId      String
-  sync        GitHubSync @relation(fields: [syncId], references: [id], onDelete: Cascade)
-  
+  id     String     @id @default(uuid())
+  syncId String
+  sync   GitHubSync @relation(fields: [syncId], references: [id], onDelete: Cascade)
+
   // Commit Data
-  sha         String   @unique
-  message     String   @db.Text
-  author      String
-  authorEmail String?
+  sha          String   @unique
+  message      String   @db.Text
+  author       String
+  authorEmail  String?
   authorAvatar String?
-  committedAt DateTime
-  
+  committedAt  DateTime
+
   // Diff Stats
-  additions   Int      @default(0)
-  deletions   Int      @default(0)
-  changedFiles Int     @default(0)
-  
-  createdAt   DateTime @default(now())
-  
+  additions    Int @default(0)
+  deletions    Int @default(0)
+  changedFiles Int @default(0)
+
+  createdAt DateTime @default(now())
+
   @@index([syncId, committedAt(sort: Desc)])
 }
 
 model CalendarEvent {
-  id          String      @id @default(uuid())
-  
+  id String @id @default(uuid())
+
   // Basic Info
   title       String
   description String?     @db.Text
   type        EventType
   status      EventStatus @default(PENDING)
-  
+
   // Timing
-  startDate   DateTime
-  endDate     DateTime
-  isAllDay    Boolean     @default(false)
-  timezone    String      @default("Europe/Madrid")
-  
+  startDate DateTime
+  endDate   DateTime
+  isAllDay  Boolean  @default(false)
+  timezone  String   @default("Europe/Madrid")
+
   // Recurrence (JSON for flexibility)
-  recurrence  Json?       // { type: 'daily'|'weekly'|'monthly', interval: 1, endDate: '...' }
-  
+  recurrence Json? // { type: 'daily'|'weekly'|'monthly', interval: 1, endDate: '...' }
+
   // Relations
-  projectId   String?
-  project     Project?    @relation(fields: [projectId], references: [id], onDelete: Cascade)
-  
+  projectId String?
+  project   Project? @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
   createdById String
-  createdBy   User        @relation("EventCreator", fields: [createdById], references: [id])
-  
+  createdBy   User   @relation("EventCreator", fields: [createdById], references: [id])
+
   // Participants (for approval workflow)
-  vendorId    String?
-  vendor      VendorProfile? @relation("VendorEvents", fields: [vendorId], references: [id])
-  clientId    String?
-  client      ClientProfile? @relation("ClientEvents", fields: [clientId], references: [id])
-  
+  vendorId String?
+  vendor   VendorProfile? @relation("VendorEvents", fields: [vendorId], references: [id])
+  clientId String?
+  client   ClientProfile? @relation("ClientEvents", fields: [clientId], references: [id])
+
   // Meeting Details
-  meetingLink String?     // Google Meet, Teams, Zoom
+  meetingLink String? // Google Meet, Teams, Zoom
   location    String?
-  
+
   // Proposed Date (when someone proposes alternative)
   proposedStartDate DateTime?
   proposedEndDate   DateTime?
-  proposedBy        String?   // userId who proposed
+  proposedBy        String? // userId who proposed
   proposalComment   String?   @db.Text
-  
+
   // Metadata
-  color       String?     // Hex color for display
-  
-  createdAt   DateTime    @default(now())
-  updatedAt   DateTime    @updatedAt
-  
-  attendees   EventAttendee[]
-  reminders   EventReminder[]
+  color String? // Hex color for display
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  attendees EventAttendee[]
+  reminders EventReminder[]
 }
 
 model EventAttendee {
-  id        String         @id @default(uuid())
-  eventId   String
-  event     CalendarEvent  @relation(fields: [eventId], references: [id], onDelete: Cascade)
-  
-  userId    String
-  user      User           @relation(fields: [userId], references: [id])
-  
-  status    AttendeeStatus @default(NO_RESPONSE)
-  comment   String?        // Decline reason, notes
-  
-  createdAt DateTime       @default(now())
-  updatedAt DateTime       @updatedAt
-  
+  id      String        @id @default(uuid())
+  eventId String
+  event   CalendarEvent @relation(fields: [eventId], references: [id], onDelete: Cascade)
+
+  userId String
+  user   User   @relation(fields: [userId], references: [id])
+
+  status  AttendeeStatus @default(NO_RESPONSE)
+  comment String? // Decline reason, notes
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
   @@unique([eventId, userId])
 }
 
 model EventReminder {
-  id        String        @id @default(uuid())
-  eventId   String
-  event     CalendarEvent @relation(fields: [eventId], references: [id], onDelete: Cascade)
-  
-  userId    String
-  user      User          @relation(fields: [userId], references: [id])
-  
-  minutesBefore Int        // 15, 30, 60, 1440 (1 day), etc.
-  sent      Boolean       @default(false)
-  
-  createdAt DateTime      @default(now())
-  
+  id      String        @id @default(uuid())
+  eventId String
+  event   CalendarEvent @relation(fields: [eventId], references: [id], onDelete: Cascade)
+
+  userId String
+  user   User   @relation(fields: [userId], references: [id])
+
+  minutesBefore Int // 15, 30, 60, 1440 (1 day), etc.
+  sent          Boolean @default(false)
+
+  createdAt DateTime @default(now())
+
   @@unique([eventId, userId, minutesBefore])
 }
 
@@ -355,10 +369,16 @@ model Project {
   contract     Contract?
 
   // New Relations
-  incidents Incident[]
-  reviews   Review[]
+  incidents  Incident[]
+  reviews    Review[]
   githubSync GitHubSync?
-  events    CalendarEvent[]
+  events     CalendarEvent[]
+  
+  // Financial Management
+  escrow     ProjectEscrow?
+
+  // Admin Relations
+  dispute Dispute?
 }
 
 model ProjectFolder {
@@ -408,7 +428,94 @@ model Milestone {
 
   // Deliverables folders (protected files) - multiple allowed
   deliverableFolders DeliverableFolder[]
+
+  // Approval Workflow
+  submittedAt     DateTime?
+  reviewDeadline  DateTime? // 7 days from submittedAt for auto-approval
+  reviews         DeliverableReview[]
 }
+
+model DeliverableReview {
+  id          String    @id @default(uuid())
+  milestoneId String
+  milestone   Milestone @relation(fields: [milestoneId], references: [id])
+  
+  reviewerId  String
+  reviewer    User      @relation(fields: [reviewerId], references: [id])
+  
+  status      ReviewStatus  // APPROVED, REJECTED, DISPUTED
+  comment     String?       @db.Text
+  
+  // Review tracking
+  reviewNumber Int      @default(1) // 1st, 2nd, 3rd review
+  
+  // Dispute resolution
+  disputeResolution String?   @db.Text
+  resolvedBy        String?   // Admin userId if disputed
+  resolvedAt        DateTime?
+  
+  createdAt   DateTime  @default(now())
+  
+  @@index([milestoneId])
+}
+
+enum ReviewStatus {
+  APPROVED
+  REJECTED
+  DISPUTED
+}
+
+// ========== ESCROW & FINANCIAL MANAGEMENT ==========
+
+model ProjectEscrow {
+  id              String   @id @default(uuid())
+  projectId       String   @unique
+  project         Project  @relation(fields: [projectId], references: [id])
+  
+  paymentMode     PaymentMode  // PER_MILESTONE | UPFRONT_ALL
+  totalBudget     Float
+  
+  // Financial tracking
+  depositedAmount Float    @default(0)  // Total currently in escrow
+  releasedAmount  Float    @default(0)  // Total released to vendor
+  // pendingAmount is calculated: totalBudget - depositedAmount
+  
+  // Transaction history
+  transactions    EscrowTransaction[]
+  
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  
+  @@index([projectId])
+}
+
+model EscrowTransaction {
+  id          String   @id @default(uuid())
+  escrowId    String
+  escrow      ProjectEscrow @relation(fields: [escrowId], references: [id])
+  
+  type        EscrowTransactionType  // DEPOSIT, RELEASE, REFUND
+  amount      Float
+  milestoneId String?          // Associated milestone if applicable
+  
+  description String
+  createdAt   DateTime @default(now())
+  
+  @@index([escrowId])
+  @@index([milestoneId])
+}
+
+enum PaymentMode {
+  PER_MILESTONE   // Client deposits per milestone
+  UPFRONT_ALL     // Client deposits total budget upfront
+}
+
+enum EscrowTransactionType {
+  DEPOSIT   // Client → Escrow
+  RELEASE   // Escrow → Vendor
+  REFUND    // Escrow → Client (dispute resolution)
+}
+
 
 model Proposal {
   id          String        @id @default(uuid())
@@ -507,10 +614,83 @@ model ContractVersion {
 }
 
 enum NotificationType {
-  INFO
-  SUCCESS
-  WARNING
-  ERROR
+  // Propuestas
+  PROPOSAL_RECEIVED
+  PROPOSAL_ACCEPTED
+  PROPOSAL_REJECTED
+  PROPOSAL_UPDATED
+
+  // Proyectos
+  PROJECT_CREATED
+  PROJECT_STARTED
+  PROJECT_COMPLETED
+  ACTION_REQUIRED // New: User needs to perform an action
+  PROJECT_CANCELLED
+
+  // Hitos & Entregas
+  MILESTONE_COMPLETED
+  MILESTONE_APPROVED
+  MILESTONE_REJECTED
+  DELIVERABLE_UPLOADED
+  DELIVERABLE_APPROVED
+  DEADLINE_REMINDER
+
+  // Finanzas
+  PAYMENT_REQUESTED
+  PAYMENT_APPROVED
+  PAYMENT_REJECTED
+  PAYMENT_COMPLETED
+  PAYMENT_FAILED
+
+  // Mensajes
+  MESSAGE_RECEIVED
+  MESSAGE_REPLY
+
+  // Calendario
+  EVENT_CREATED
+  EVENT_INVITATION
+  EVENT_ACCEPTED
+  EVENT_REJECTED
+  EVENT_PROPOSED
+  EVENT_REMINDER
+
+  // Archivos
+  FILE_UPLOADED
+  FILE_UPDATED
+  FOLDER_CREATED
+  FOLDER_ACCESS
+
+  // Contratos
+  CONTRACT_GENERATED
+  CONTRACT_SIGNED
+  CONTRACT_REMINDER
+
+  // Incidencias
+  INCIDENT_CREATED
+  INCIDENT_ASSIGNED
+  INCIDENT_RESOLVED
+  INCIDENT_UPDATED
+  INCIDENT_CRITICAL
+
+  // Reviews
+  REVIEW_RECEIVED
+  REVIEW_REPLIED
+
+  // GitHub
+  GITHUB_COMMIT
+  GITHUB_RELEASE
+  GITHUB_MILESTONE
+
+  // Sistema
+  SYSTEM_ASSIGNMENT
+  SYSTEM_REMINDER
+  SYSTEM_SUCCESS
+  SYSTEM_WARNING
+
+  // Escrow & Reviews
+  REVIEW_REQUESTED
+  CHANGES_REQUESTED
+  DISPUTE_OPENED
 }
 
 enum IncidentStatus {
@@ -547,15 +727,35 @@ model Incident {
 }
 
 model Notification {
-  id        String           @id @default(uuid())
-  userId    String
-  user      User             @relation(fields: [userId], references: [id])
-  type      NotificationType @default(INFO)
-  title     String
-  message   String
-  link      String?
-  isRead    Boolean          @default(false)
-  createdAt DateTime         @default(now())
+  id     String @id @default(uuid())
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  // Tipo y contenido
+  type    NotificationType
+  title   String
+  message String           @db.Text
+
+  // Metadata para enrutamiento
+  actionUrl  String? // URL de destino al hacer click
+  entityId   String? // ID de proyecto, milestone, mensaje, etc
+  entityType String? // 'project', 'milestone', 'message', 'calendar', etc
+
+  // Actor que generó la notificación
+  actorId String?
+  actor   User?   @relation("NotificationActor", fields: [actorId], references: [id], onDelete: SetNull)
+
+  // Estado de lectura
+  isRead Boolean   @default(false)
+  readAt DateTime?
+
+  // Timestamps
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([userId, isRead])
+  @@index([userId, createdAt(sort: Desc)])
+  @@index([entityId, entityType])
 }
 
 // SavedVendor: Tracks which clients have saved/favorited which vendors
@@ -580,6 +780,7 @@ enum PaymentRequestStatus {
   APPROVED
   REJECTED
   COMPLETED
+  DISPUTED
 }
 
 model PaymentRequest {
@@ -852,3 +1053,200 @@ model DeliverableSubfolder {
   @@index([folderId])
   @@index([parentId])
 }
+
+// ==========================================
+// ADMIN SYSTEM MODELS
+// ==========================================
+
+// --- Admin Permissions & Actions ---
+enum AdminPermission {
+  SUPER_ADMIN // Full access
+  USER_MANAGEMENT // Manage users
+  PROJECT_OVERSIGHT // View/modify projects
+  DISPUTE_RESOLUTION // Resolve disputes
+  PLATFORM_CONFIG // Change configuration
+  METRICS_VIEW // View metrics
+  REPORT_GENERATE // Generate reports
+}
+
+enum AdminActionType {
+  USER_SUSPENDED
+  USER_ACTIVATED
+  USER_DELETED
+  PROJECT_CANCELLED
+  DISPUTE_RESOLVED
+  CONFIG_CHANGED
+  FUNDS_RELEASED
+  FUNDS_REFUNDED
+  VENDOR_VERIFIED
+  VENDOR_REJECTED
+  REPORT_GENERATED
+  SYSTEM_MAINTENANCE
+}
+
+enum DisputeStatus {
+  OPEN
+  INVESTIGATING
+  RESOLVED
+}
+
+enum DisputeResolutionType {
+  REFUND_CLIENT
+  RELEASE_VENDOR
+  SPLIT_CUSTOM
+}
+
+// --- Platform Configuration ---
+model PlatformConfig {
+  id String @id @default(uuid())
+
+  // Financial settings
+  vendorCommission Float @default(10) // Percentage
+  clientFee        Float @default(3) // Percentage
+  escrowHoldDays   Int   @default(3)
+
+  // Business rules
+  verificationRequired Boolean @default(true)
+  inviteOnlyMode       Boolean @default(false)
+  maintenanceMode      Boolean @default(false)
+  maintenanceMessage   String? @db.Text
+  registrationClient   Boolean @default(true)
+  registrationVendor   Boolean @default(true)
+
+  // Security
+  force2FAAdmin        Boolean @default(true)
+  strongPasswordPolicy Boolean @default(true)
+
+  // AI Configuration
+  aiModel        String @default("gemini-1.5-flash")
+  aiTemperature  Float  @default(0.7)
+  aiSystemPrompt String @default("You are an AI assistant for a B2B marketplace.") @db.Text
+
+  updatedAt DateTime @updatedAt
+  updatedBy String // Admin user ID
+}
+
+// --- Admin Team Management ---
+model AdminProfile {
+  id     String @id @default(uuid())
+  userId String @unique
+  user   User   @relation(fields: [userId], references: [id])
+
+  displayName String
+  permissions AdminPermission[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  actions AdminAction[]
+  reports VendorReport[]
+}
+
+// --- Admin Action Logging ---
+model AdminAction {
+  id      String       @id @default(uuid())
+  adminId String
+  admin   AdminProfile @relation(fields: [adminId], references: [id])
+
+  type       AdminActionType
+  targetType String // 'user', 'project', 'dispute', 'config', etc.
+  targetId   String
+  details    String          @db.Text
+  metadata   Json? // Additional data
+
+  createdAt DateTime @default(now())
+
+  @@index([adminId])
+  @@index([targetType, targetId])
+  @@index([createdAt])
+  @@index([type])
+}
+
+// --- Dispute Resolution System ---
+model Dispute {
+  id        String  @id @default(uuid())
+  projectId String  @unique
+  project   Project @relation(fields: [projectId], references: [id])
+
+  // Parties involved
+  plaintiffId String // Client or Vendor user ID
+  defendantId String // Client or Vendor user ID
+
+  // Amounts
+  amount       Decimal @db.Decimal(10, 2)
+  escrowAmount Decimal @db.Decimal(10, 2)
+
+  // Evidence
+  reason         String  @db.Text
+  clientEvidence String? @db.Text
+  vendorEvidence String? @db.Text
+
+  // Status & Resolution
+  status          DisputeStatus          @default(OPEN)
+  resolution      DisputeResolutionType?
+  resolutionNotes String?                @db.Text
+
+  // Split amounts (for SPLIT_CUSTOM resolution)
+  splitClient Decimal? @db.Decimal(10, 2)
+  splitVendor Decimal? @db.Decimal(10, 2)
+
+  // AI Analysis
+  aiSentiment      String? // 'neutral', 'hostile', 'cooperative'
+  aiRecommendation String? @db.Text
+  aiConfidence     Float?
+
+  // Resolution tracking
+  resolvedBy String? // Admin user ID
+  resolvedAt DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([status])
+  @@index([projectId])
+  @@index([plaintiffId])
+  @@index([defendantId])
+}
+
+// --- Vendor Competitive Reports ---
+model VendorReport {
+  id       String        @id @default(uuid())
+  vendorId String
+  vendor   VendorProfile @relation(fields: [vendorId], references: [id])
+
+  generatedBy String
+  admin       AdminProfile @relation(fields: [generatedBy], references: [id])
+
+  // Report configuration
+  config Json // Sector, region, filters applied
+
+  // Calculated metrics
+  rank            String?
+  winRate         Float?
+  avgTicket       Decimal? @db.Decimal(10, 2)
+  marketAvgTicket Decimal? @db.Decimal(10, 2)
+  qualityScore    Float?
+  benchmarkData   Json? // Comparison data
+
+  // Revenue tracking
+  price  Decimal?  @db.Decimal(10, 2)
+  paidAt DateTime?
+
+  createdAt DateTime  @default(now())
+  expiresAt DateTime? // Reports can have temporal validity
+
+  @@index([vendorId])
+  @@index([generatedBy])
+  @@index([createdAt])
+}
+
+// --- Skills Taxonomy ---
+model Skill {
+  id        String   @id @default(uuid())
+  name      String   @unique
+  category  String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+

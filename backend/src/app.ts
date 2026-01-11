@@ -12,6 +12,12 @@ const app: Application = express();
 };
 
 // Middleware
+app.use((req, res, next) => {
+    console.log(`[INCOMING] ${req.method} ${req.url} from ${req.ip}`);
+    console.log(`[INCOMING] Full path: ${req.protocol}://${req.get('host')}${req.originalUrl}`);
+    console.log(`[INCOMING] Headers:`, req.headers);
+    next();
+});
 app.use(cors({
     origin: true, // Allow all origins dynamically
     credentials: true,

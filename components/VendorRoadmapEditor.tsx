@@ -91,6 +91,22 @@ const VendorRoadmapEditor = forwardRef<VendorRoadmapEditorRef, VendorRoadmapEdit
         }, 1500);
     };
 
+    const handleStartMilestone = async (id: string) => {
+        setFinancialLoading(true);
+        try {
+            await api.post(`/milestones/${id}/start`);
+            setMilestones(prev => prev.map(m =>
+                m.id === id ? { ...m, status: 'IN_PROGRESS' } : m
+            ));
+            showToast('Hito iniciado', 'success');
+        } catch (error: any) {
+            console.error('Error starting milestone:', error);
+            showToast(error.response?.data?.message || 'Error al iniciar hito', 'error');
+        } finally {
+            setFinancialLoading(false);
+        }
+    };
+
     const handleCompleteMilestone = async () => {
         if (!selectedMilestone || !completionNote.trim()) {
             showToast('La justificación es obligatoria', 'warning');
@@ -252,28 +268,38 @@ const VendorRoadmapEditor = forwardRef<VendorRoadmapEditorRef, VendorRoadmapEdit
 
                 {milestones.map((milestone, index) => {
                     const isCompleted = milestone.status === 'COMPLETED' || milestone.status === 'PAID';
-                    const isInProgress = milestone.status === 'IN_PROGRESS';
+                    const isInProgress = milestone.status === 'IN_PROGRESS' || milestone.status === 'CHANGES_REQUESTED';
+                    const isReviewing = milestone.status === 'READY_FOR_REVIEW';
+                    const isDisputed = milestone.status === 'IN_DISPUTE';
                     const isPending = milestone.status === 'PENDING';
-                    const isLocked = isCompleted;
+                    const isLocked = isCompleted || isReviewing; // Lock editing if reviewing
 
                     return (
                         <div key={milestone.id} className="relative group/node">
                             <div className={`absolute -left-[29px] top-0 h-12 w-12 rounded-full border-4 border-white shadow-sm flex items-center justify-center z-10 transition-all
                                     ${isCompleted ? 'bg-green-100 text-green-600' :
-                                    isInProgress ? 'bg-primary text-white shadow-lg' :
-                                        'bg-white border-2 border-gray-300 text-gray-300'}
+                                    isReviewing ? 'bg-amber-100 text-amber-600' :
+                                        isDisputed ? 'bg-red-100 text-red-600' :
+                                            isInProgress ? 'bg-primary text-white shadow-lg' :
+                                                'bg-white border-2 border-gray-300 text-gray-300'}
                                 `}>
                                 {isCompleted ? <span className="material-symbols-outlined">check</span> :
-                                    isInProgress ? <span className="material-symbols-outlined animate-pulse">sync</span> :
-                                        <span className="font-bold">{index + 1}</span>}
+                                    isReviewing ? <span className="material-symbols-outlined">rate_review</span> :
+                                        isDisputed ? <span className="material-symbols-outlined">gavel</span> :
+                                            isInProgress ? <span className="material-symbols-outlined animate-pulse">sync</span> :
+                                                <span className="font-bold">{index + 1}</span>}
                             </div>
 
                             <div className={`p-6 rounded-2xl border relative overflow-hidden transition-all group-hover/node:shadow-md
                                     ${isCompleted ? 'bg-white border-green-200 shadow-sm' :
-                                    isInProgress ? 'bg-white border-2 border-primary shadow-md' :
-                                        'bg-gray-50 border-gray-200 border-dashed'}
+                                    isReviewing ? 'bg-amber-50 border-amber-200' :
+                                        isDisputed ? 'bg-red-50 border-red-200' :
+                                            isInProgress ? 'bg-white border-2 border-primary shadow-md' :
+                                                'bg-gray-50 border-gray-200 border-dashed'}
                                 `}>
                                 {isCompleted && <div className="absolute top-0 right-0 bg-green-500 text-white text-xs font-bold px-3 py-1 rounded-bl-xl">COMPLETADO</div>}
+                                {isReviewing && <div className="absolute top-0 right-0 bg-amber-500 text-white text-xs font-bold px-3 py-1 rounded-bl-xl">EN REVISIÓN</div>}
+                                {isDisputed && <div className="absolute top-0 right-0 bg-red-500 text-white text-xs font-bold px-3 py-1 rounded-bl-xl">EN DISPUTA</div>}
                                 {isInProgress && <div className="absolute top-0 right-0 bg-primary text-white text-xs font-bold px-3 py-1 rounded-bl-xl">EN PROGRESO</div>}
 
                                 <div className="flex justify-between items-start">
@@ -309,14 +335,13 @@ const VendorRoadmapEditor = forwardRef<VendorRoadmapEditorRef, VendorRoadmapEdit
                                         {(milestone.amount === 0 || milestone.paymentRequest || isCompleted) && (
                                             <div>
                                                 <span className={`block font-bold ${isPending ? 'text-gray-400' : 'text-gray-900'}`}>${milestone.amount.toLocaleString()} USD</span>
-                                                <div className="mt-1">
-                                                    <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-bold ${milestone.isPaid ? 'bg-green-100 text-green-700' :
-                                                        isCompleted ? 'bg-blue-100 text-blue-700' :
-                                                            'bg-gray-100 text-gray-600'
-                                                        }`}>
-                                                        {milestone.isPaid ? 'Pagado' : (isCompleted ? 'En Garantía' : 'Pendiente')}
-                                                    </span>
-                                                </div>
+                                                {(milestone.isPaid || isCompleted) && (
+                                                    <div className="mt-1">
+                                                        <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-bold ${milestone.isPaid ? 'bg-green-100 text-green-700' : 'bg-blue-100 text-blue-700'}`}>
+                                                            {milestone.isPaid ? 'Pagado' : 'En Garantía'}
+                                                        </span>
+                                                    </div>
+                                                )}
                                             </div>
                                         )}
                                     </div>
@@ -338,6 +363,21 @@ const VendorRoadmapEditor = forwardRef<VendorRoadmapEditorRef, VendorRoadmapEdit
                                             const hasPayment = milestone.amount > 0;
                                             const isAlreadyCompleted = milestone.status === 'COMPLETED' || milestone.status === 'PAID';
                                             const hasApprovedRequest = milestone.paymentRequest?.status === 'APPROVED' || milestone.paymentRequest?.status === 'COMPLETED';
+
+                                            if (isPending && isPreviousCompleted && !isAlreadyCompleted) {
+                                                return (
+                                                    <div className="mt-4 flex justify-end">
+                                                        <button
+                                                            onClick={() => handleStartMilestone(milestone.id)}
+                                                            disabled={financialLoading}
+                                                            className="px-4 py-2 bg-blue-600 text-white rounded-lg font-bold shadow-sm hover:bg-blue-700 hover:shadow-md transition-all flex items-center gap-2"
+                                                        >
+                                                            {financialLoading ? <span className="material-symbols-outlined animate-spin">sync</span> : <span className="material-symbols-outlined">play_arrow</span>}
+                                                            Iniciar Hito
+                                                        </button>
+                                                    </div>
+                                                );
+                                            }
 
                                             // Action button in top-right corner
                                             if (!isAlreadyCompleted) {
@@ -368,13 +408,13 @@ const VendorRoadmapEditor = forwardRef<VendorRoadmapEditorRef, VendorRoadmapEdit
                                                             title="Solicitar liberación de pago"
                                                         >
                                                             <span className="material-symbols-outlined text-base">lock_open</span>
-                                                            Liberar ${milestone.amount.toLocaleString()}
+                                                            Solicitar Liberación ${milestone.amount.toLocaleString()}
                                                         </button>
                                                     );
                                                 }
 
-                                                // Hito con pago aprobado O sin pago → Marcar completado
-                                                if ((hasPayment && hasApprovedRequest && milestone.isPaid) || !hasPayment) {
+                                                // Hito SIN pago O con pago aprobado → Marcar completado
+                                                if (!hasPayment || (hasPayment && hasApprovedRequest && milestone.isPaid)) {
                                                     if (!isPreviousCompleted) {
                                                         const previousMilestone = milestones[index - 1];
                                                         return (
@@ -407,9 +447,9 @@ const VendorRoadmapEditor = forwardRef<VendorRoadmapEditorRef, VendorRoadmapEdit
                                             return null;
                                         })()}
 
-                                        {/* Payment request status badge - Subtle, bottom-right - Hidden if COMPLETED (Paid) to avoid covering date */}
-                                        {milestone.paymentRequest && milestone.paymentRequest.status !== 'COMPLETED' && (
-                                            <div className="absolute bottom-4 right-4">
+                                        {/* Payment request status badge - Subtle, bottom-right - Hidden if COMPLETED (Paid) or PENDING (Redundant) */}
+                                        {milestone.paymentRequest && milestone.paymentRequest.status !== 'COMPLETED' && milestone.paymentRequest.status !== 'PENDING' && (
+                                            <div className="absolute top-4 right-4">
                                                 <div className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold border ${milestone.paymentRequest.status === 'PENDING' ? 'bg-blue-50 border-blue-200 text-blue-700' :
                                                     milestone.paymentRequest.status === 'APPROVED' ? 'bg-purple-50 border-purple-200 text-purple-700' :
                                                         milestone.paymentRequest.status === 'COMPLETED' ? 'bg-green-50 border-green-200 text-green-700' :
@@ -446,277 +486,301 @@ const VendorRoadmapEditor = forwardRef<VendorRoadmapEditorRef, VendorRoadmapEdit
                                             </div>
                                         )}
                                     </>
-                                )}
+                                )
+                                }
                             </div>
 
-                            {isEditing && !isLocked && (
-                                <div className="absolute left-[24px] -bottom-8 w-0.5 h-8 z-20 flex items-center justify-center">
-                                    <button
-                                        onClick={() => openAddModal(index + 1)}
-                                        className="bg-white border-2 border-primary text-primary w-6 h-6 rounded-full flex items-center justify-center hover:bg-primary hover:text-white transition-colors shadow-sm transform translate-x-[-1px]"
-                                        title="Insertar Hito Aquí"
-                                    >
-                                        <span className="material-symbols-outlined text-sm font-bold">add</span>
-                                    </button>
-                                </div>
+                            {isEditing && (
+                                (() => {
+                                    // Logic for allowing insertion:
+                                    // 1. Can always add after Pending, In Progress, Reviewing
+                                    // 2. Can add after Completed ONLY if next is NOT Reviewing
+                                    const nextMilestone = milestones[index + 1];
+                                    const isNextReviewing = nextMilestone?.status === 'READY_FOR_REVIEW';
+
+                                    // If current is completed/paid, check next. Otherwise (Pending, Progress, Review), allow.
+                                    const canAddAfter = isCompleted ? !isNextReviewing : true;
+
+                                    if (!canAddAfter) return null;
+
+                                    return (
+                                        <div className="absolute left-[24px] -bottom-8 w-0.5 h-8 z-20 flex items-center justify-center">
+                                            <button
+                                                onClick={() => openAddModal(index + 1)}
+                                                className="bg-white border-2 border-primary text-primary w-6 h-6 rounded-full flex items-center justify-center hover:bg-primary hover:text-white transition-colors shadow-sm transform translate-x-[-1px]"
+                                                title="Insertar Hito Aquí"
+                                            >
+                                                <span className="material-symbols-outlined text-sm font-bold">add</span>
+                                            </button>
+                                        </div>
+                                    );
+                                })()
                             )}
                         </div>
                     );
                 })}
             </div>
 
-            {showModal && (
-                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
-                    <div className="bg-white rounded-2xl shadow-xl w-full max-w-lg p-6 animate-in zoom-in-95">
-                        <h3 className="text-xl font-bold text-gray-900 mb-4">{insertIndex !== null ? 'Añadir Nuevo Hito' : 'Editar Hito'}</h3>
+            {
+                showModal && (
+                    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
+                        <div className="bg-white rounded-2xl shadow-xl w-full max-w-lg p-6 animate-in zoom-in-95">
+                            <h3 className="text-xl font-bold text-gray-900 mb-4">{insertIndex !== null ? 'Añadir Nuevo Hito' : 'Editar Hito'}</h3>
 
-                        {error && (
-                            <div className="mb-4 bg-red-50 text-red-600 p-3 rounded-lg text-sm font-medium flex items-center gap-2">
-                                <span className="material-symbols-outlined">error</span> {error}
-                            </div>
-                        )}
+                            {error && (
+                                <div className="mb-4 bg-red-50 text-red-600 p-3 rounded-lg text-sm font-medium flex items-center gap-2">
+                                    <span className="material-symbols-outlined">error</span> {error}
+                                </div>
+                            )}
 
-                        <div className="space-y-4">
-                            <div>
-                                <label className="block text-sm font-bold text-gray-700 mb-1">Título del Hito</label>
-                                <input
-                                    type="text"
-                                    className="w-full px-4 py-2 border border-gray-200 rounded-xl focus:ring-2 focus:ring-primary outline-none"
-                                    value={currentNode.title}
-                                    onChange={e => setCurrentNode({ ...currentNode, title: e.target.value })}
-                                    placeholder="Ej. Diseño UI/UX"
-                                />
-                            </div>
-
-                            <div className="grid grid-cols-2 gap-4">
+                            <div className="space-y-4">
                                 <div>
-                                    <label className="block text-sm font-bold text-gray-700 mb-1">Costo (USD)</label>
+                                    <label className="block text-sm font-bold text-gray-700 mb-1">Título del Hito</label>
                                     <input
                                         type="text"
-                                        inputMode="numeric"
                                         className="w-full px-4 py-2 border border-gray-200 rounded-xl focus:ring-2 focus:ring-primary outline-none"
-                                        value={currentNode.amount || ''}
-                                        onChange={e => {
-                                            const value = e.target.value.replace(/[^0-9]/g, '');
-                                            setCurrentNode({ ...currentNode, amount: value ? parseInt(value, 10) : 0 });
-                                        }}
-                                        placeholder="0"
+                                        value={currentNode.title}
+                                        onChange={e => setCurrentNode({ ...currentNode, title: e.target.value })}
+                                        placeholder="Ej. Diseño UI/UX"
                                     />
                                 </div>
+
+                                <div className="grid grid-cols-2 gap-4">
+                                    <div>
+                                        <label className="block text-sm font-bold text-gray-700 mb-1">Costo (USD)</label>
+                                        <input
+                                            type="text"
+                                            inputMode="numeric"
+                                            className="w-full px-4 py-2 border border-gray-200 rounded-xl focus:ring-2 focus:ring-primary outline-none"
+                                            value={currentNode.amount || ''}
+                                            onChange={e => {
+                                                const value = e.target.value.replace(/[^0-9]/g, '');
+                                                setCurrentNode({ ...currentNode, amount: value ? parseInt(value, 10) : 0 });
+                                            }}
+                                            placeholder="0"
+                                        />
+                                    </div>
+                                    <div>
+                                        <label className="block text-sm font-bold text-gray-700 mb-1">Fecha de Entrega</label>
+                                        <input
+                                            type="date"
+                                            className="w-full px-4 py-2 border border-gray-200 rounded-xl focus:ring-2 focus:ring-primary outline-none"
+                                            value={currentNode.dueDate ? new Date(currentNode.dueDate).toISOString().split('T')[0] : ''}
+                                            onChange={e => setCurrentNode({ ...currentNode, dueDate: e.target.value })}
+                                        />
+                                    </div>
+                                </div>
+
                                 <div>
-                                    <label className="block text-sm font-bold text-gray-700 mb-1">Fecha de Entrega</label>
-                                    <input
-                                        type="date"
-                                        className="w-full px-4 py-2 border border-gray-200 rounded-xl focus:ring-2 focus:ring-primary outline-none"
-                                        value={currentNode.dueDate ? new Date(currentNode.dueDate).toISOString().split('T')[0] : ''}
-                                        onChange={e => setCurrentNode({ ...currentNode, dueDate: e.target.value })}
+                                    <label className="block text-sm font-bold text-gray-700 mb-1">Descripción / Entregables</label>
+                                    <textarea
+                                        className="w-full px-4 py-2 border border-gray-200 rounded-xl focus:ring-2 focus:ring-primary outline-none resize-none h-24"
+                                        value={currentNode.description}
+                                        onChange={e => setCurrentNode({ ...currentNode, description: e.target.value })}
+                                        placeholder="Resumen de lo que se entregará..."
                                     />
                                 </div>
                             </div>
 
-                            <div>
-                                <label className="block text-sm font-bold text-gray-700 mb-1">Descripción / Entregables</label>
-                                <textarea
-                                    className="w-full px-4 py-2 border border-gray-200 rounded-xl focus:ring-2 focus:ring-primary outline-none resize-none h-24"
-                                    value={currentNode.description}
-                                    onChange={e => setCurrentNode({ ...currentNode, description: e.target.value })}
-                                    placeholder="Resumen de lo que se entregará..."
-                                />
+                            <div className="flex justify-end gap-3 pt-6 mt-2">
+                                <button onClick={() => setShowModal(false)} className="px-4 py-2 text-gray-600 font-bold hover:bg-gray-50 rounded-lg">Cancelar</button>
+                                <button onClick={handleSaveNode} className="px-6 py-2 bg-primary text-white font-bold rounded-lg hover:bg-primary/90">Guardar Hito</button>
                             </div>
-                        </div>
-
-                        <div className="flex justify-end gap-3 pt-6 mt-2">
-                            <button onClick={() => setShowModal(false)} className="px-4 py-2 text-gray-600 font-bold hover:bg-gray-50 rounded-lg">Cancelar</button>
-                            <button onClick={handleSaveNode} className="px-6 py-2 bg-primary text-white font-bold rounded-lg hover:bg-primary/90">Guardar Hito</button>
                         </div>
                     </div>
-                </div>
-            )}
+                )
+            }
 
-            {showNotifyModal && (
-                <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
-                    <div className="bg-white rounded-2xl shadow-xl w-full max-w-md p-6 animate-in zoom-in-95">
-                        {saveStatus === 'success' ? (
-                            <div className="text-center py-6">
-                                <div className="w-16 h-16 bg-green-100 text-green-600 rounded-full flex items-center justify-center mx-auto mb-4 animate-in zoom-in spin-in-180">
-                                    <span className="material-symbols-outlined text-4xl">check</span>
-                                </div>
-                                <h3 className="text-xl font-bold text-gray-900">¡Roadmap Actualizado!</h3>
-                                <p className="text-gray-500 text-sm mt-2">Los cambios se han guardado y el cliente ha sido notificado.</p>
-                            </div>
-                        ) : (
-                            <>
-                                <div className="text-center mb-6">
-                                    <div className="w-12 h-12 bg-blue-100 text-primary rounded-full flex items-center justify-center mx-auto mb-3">
-                                        <span className="material-symbols-outlined text-2xl">send</span>
+            {
+                showNotifyModal && (
+                    <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
+                        <div className="bg-white rounded-2xl shadow-xl w-full max-w-md p-6 animate-in zoom-in-95">
+                            {saveStatus === 'success' ? (
+                                <div className="text-center py-6">
+                                    <div className="w-16 h-16 bg-green-100 text-green-600 rounded-full flex items-center justify-center mx-auto mb-4 animate-in zoom-in spin-in-180">
+                                        <span className="material-symbols-outlined text-4xl">check</span>
                                     </div>
-                                    <h3 className="text-xl font-bold text-gray-900">Actualizar Roadmap</h3>
-                                    <p className="text-gray-500 text-sm mt-1">Se notificará al cliente sobre los cambios realizados.</p>
+                                    <h3 className="text-xl font-bold text-gray-900">¡Roadmap Actualizado!</h3>
+                                    <p className="text-gray-500 text-sm mt-2">Los cambios se han guardado y el cliente ha sido notificado.</p>
+                                </div>
+                            ) : (
+                                <>
+                                    <div className="text-center mb-6">
+                                        <div className="w-12 h-12 bg-blue-100 text-primary rounded-full flex items-center justify-center mx-auto mb-3">
+                                            <span className="material-symbols-outlined text-2xl">send</span>
+                                        </div>
+                                        <h3 className="text-xl font-bold text-gray-900">Actualizar Roadmap</h3>
+                                        <p className="text-gray-500 text-sm mt-1">Se notificará al cliente sobre los cambios realizados.</p>
+                                    </div>
+
+                                    <div className="mb-6">
+                                        <label className="block text-sm font-bold text-gray-700 mb-2">Mensaje opcional para el cliente</label>
+                                        <textarea
+                                            className="w-full p-4 border border-gray-200 rounded-xl focus:ring-2 focus:ring-primary outline-none resize-none h-24 bg-gray-50 text-sm"
+                                            placeholder="Hola, he ajustado las fechas de los próximos hitos debido a..."
+                                            value={notificationText}
+                                            onChange={e => setNotificationText(e.target.value)}
+                                            disabled={saveStatus === 'saving'}
+                                        />
+                                    </div>
+
+                                    <div className="flex gap-3">
+                                        <button
+                                            onClick={() => setShowNotifyModal(false)}
+                                            className="flex-1 py-2.5 text-gray-600 font-bold hover:bg-gray-100 rounded-xl text-sm"
+                                            disabled={saveStatus === 'saving'}
+                                        >
+                                            Volver a editar
+                                        </button>
+                                        <button
+                                            onClick={handleConfirmSave}
+                                            className="flex-1 py-2.5 bg-primary text-white font-bold rounded-xl hover:bg-primary/90 shadow-lg shadow-primary/20 text-sm flex items-center justify-center gap-2"
+                                            disabled={saveStatus === 'saving'}
+                                        >
+                                            {saveStatus === 'saving' ? (
+                                                <>
+                                                    <span className="material-symbols-outlined animate-spin text-lg">sync</span> Guardando...
+                                                </>
+                                            ) : (
+                                                'Confirmar y Enviar'
+                                            )}
+                                        </button>
+                                    </div>
+                                </>
+                            )}
+                        </div>
+                    </div>
+                )
+            }
+
+            {/* Complete Milestone Modal */}
+            {
+                showCompleteModal && selectedMilestone && (
+                    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
+                        <div className="bg-white rounded-2xl w-full max-w-md shadow-2xl animate-in zoom-in-95">
+                            <div className="p-6">
+                                <div className="text-center mb-6">
+                                    <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                                        <span className="material-symbols-outlined text-3xl text-green-600">check_circle</span>
+                                    </div>
+                                    <h3 className="text-2xl font-bold text-gray-900 mb-2">Marcar Hito Completado</h3>
+                                    <p className="text-gray-600 text-sm">
+                                        Hito: <span className="font-bold">{selectedMilestone.title}</span>
+                                    </p>
                                 </div>
 
                                 <div className="mb-6">
-                                    <label className="block text-sm font-bold text-gray-700 mb-2">Mensaje opcional para el cliente</label>
+                                    <label className="block text-sm font-bold text-gray-700 mb-2">
+                                        Justificación <span className="text-red-500">*</span>
+                                    </label>
                                     <textarea
-                                        className="w-full p-4 border border-gray-200 rounded-xl focus:ring-2 focus:ring-primary outline-none resize-none h-24 bg-gray-50 text-sm"
-                                        placeholder="Hola, he ajustado las fechas de los próximos hitos debido a..."
-                                        value={notificationText}
-                                        onChange={e => setNotificationText(e.target.value)}
-                                        disabled={saveStatus === 'saving'}
+                                        className="w-full p-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-green-500 outline-none resize-none h-32"
+                                        placeholder="Describe por qué este hito está completado..."
+                                        value={completionNote}
+                                        onChange={(e) => setCompletionNote(e.target.value)}
+                                        disabled={financialLoading}
+                                    />
+                                    <p className="text-xs text-gray-500 mt-1">Esta justificación será visible para el cliente</p>
+                                </div>
+
+                                <div className="flex gap-3">
+                                    <button
+                                        onClick={() => {
+                                            setShowCompleteModal(false);
+                                            setSelectedMilestone(null);
+                                            setCompletionNote('');
+                                        }}
+                                        className="flex-1 py-2.5 text-gray-600 font-bold hover:bg-gray-100 rounded-xl"
+                                        disabled={financialLoading}
+                                    >
+                                        Cancelar
+                                    </button>
+                                    <button
+                                        onClick={handleCompleteMilestone}
+                                        className="flex-1 py-2.5 bg-green-600 text-white font-bold rounded-xl hover:bg-green-700 shadow-lg disabled:opacity-50 disabled:cursor-not-allowed"
+                                        disabled={financialLoading || !completionNote.trim()}
+                                    >
+                                        {financialLoading ? (
+                                            <span className="flex items-center justify-center gap-2">
+                                                <span className="material-symbols-outlined animate-spin text-sm">sync</span>
+                                                Procesando...
+                                            </span>
+                                        ) : (
+                                            'Confirmar Completado'
+                                        )}
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                )
+            }
+
+            {/* Request Payment Modal */}
+            {
+                showPaymentRequestModal && selectedMilestone && (
+                    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
+                        <div className="bg-white rounded-2xl w-full max-w-md shadow-2xl animate-in zoom-in-95">
+                            <div className="p-6">
+                                <div className="text-center mb-6">
+                                    <div className="w-16 h-16 bg-blue-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                                        <span className="material-symbols-outlined text-3xl text-blue-600">payments</span>
+                                    </div>
+                                    <h3 className="text-2xl font-bold text-gray-900 mb-2">Solicitar Pago</h3>
+                                    <p className="text-gray-600 text-sm mb-4">
+                                        Hito: <span className="font-bold">{selectedMilestone.title}</span>
+                                    </p>
+                                    <div className="bg-blue-50 border-2 border-blue-200 rounded-xl p-4">
+                                        <p className="text-xs text-blue-600 font-bold uppercase mb-1">Monto a Solicitar</p>
+                                        <p className="text-3xl font-black text-gray-900">${selectedMilestone.amount.toLocaleString()}</p>
+                                    </div>
+                                </div>
+
+                                <div className="mb-6">
+                                    <label className="block text-sm font-bold text-gray-700 mb-2">
+                                        Nota Opcional
+                                    </label>
+                                    <textarea
+                                        className="w-full p-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none resize-none h-24"
+                                        placeholder="Añade información adicional para el cliente (opcional)..."
+                                        value={paymentNote}
+                                        onChange={(e) => setPaymentNote(e.target.value)}
+                                        disabled={financialLoading}
                                     />
                                 </div>
 
                                 <div className="flex gap-3">
                                     <button
-                                        onClick={() => setShowNotifyModal(false)}
-                                        className="flex-1 py-2.5 text-gray-600 font-bold hover:bg-gray-100 rounded-xl text-sm"
-                                        disabled={saveStatus === 'saving'}
+                                        onClick={() => {
+                                            setShowPaymentRequestModal(false);
+                                            setSelectedMilestone(null);
+                                            setPaymentNote('');
+                                        }}
+                                        className="flex-1 py-2.5 text-gray-600 font-bold hover:bg-gray-100 rounded-xl"
+                                        disabled={financialLoading}
                                     >
-                                        Volver a editar
+                                        Cancelar
                                     </button>
                                     <button
-                                        onClick={handleConfirmSave}
-                                        className="flex-1 py-2.5 bg-primary text-white font-bold rounded-xl hover:bg-primary/90 shadow-lg shadow-primary/20 text-sm flex items-center justify-center gap-2"
-                                        disabled={saveStatus === 'saving'}
+                                        onClick={handleRequestPayment}
+                                        className="flex-1 py-2.5 bg-blue-600 text-white font-bold rounded-xl hover:bg-blue-700 shadow-lg disabled:opacity-50 disabled:cursor-not-allowed"
+                                        disabled={financialLoading}
                                     >
-                                        {saveStatus === 'saving' ? (
-                                            <>
-                                                <span className="material-symbols-outlined animate-spin text-lg">sync</span> Guardando...
-                                            </>
+                                        {financialLoading ? (
+                                            <span className="flex items-center justify-center gap-2">
+                                                <span className="material-symbols-outlined animate-spin text-sm">sync</span>
+                                                Enviando...
+                                            </span>
                                         ) : (
-                                            'Confirmar y Enviar'
+                                            'Enviar Solicitud'
                                         )}
                                     </button>
                                 </div>
-                            </>
-                        )}
-                    </div>
-                </div>
-            )}
-
-            {/* Complete Milestone Modal */}
-            {showCompleteModal && selectedMilestone && (
-                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
-                    <div className="bg-white rounded-2xl w-full max-w-md shadow-2xl animate-in zoom-in-95">
-                        <div className="p-6">
-                            <div className="text-center mb-6">
-                                <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4">
-                                    <span className="material-symbols-outlined text-3xl text-green-600">check_circle</span>
-                                </div>
-                                <h3 className="text-2xl font-bold text-gray-900 mb-2">Marcar Hito Completado</h3>
-                                <p className="text-gray-600 text-sm">
-                                    Hito: <span className="font-bold">{selectedMilestone.title}</span>
-                                </p>
-                            </div>
-
-                            <div className="mb-6">
-                                <label className="block text-sm font-bold text-gray-700 mb-2">
-                                    Justificación <span className="text-red-500">*</span>
-                                </label>
-                                <textarea
-                                    className="w-full p-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-green-500 outline-none resize-none h-32"
-                                    placeholder="Describe por qué este hito está completado..."
-                                    value={completionNote}
-                                    onChange={(e) => setCompletionNote(e.target.value)}
-                                    disabled={financialLoading}
-                                />
-                                <p className="text-xs text-gray-500 mt-1">Esta justificación será visible para el cliente</p>
-                            </div>
-
-                            <div className="flex gap-3">
-                                <button
-                                    onClick={() => {
-                                        setShowCompleteModal(false);
-                                        setSelectedMilestone(null);
-                                        setCompletionNote('');
-                                    }}
-                                    className="flex-1 py-2.5 text-gray-600 font-bold hover:bg-gray-100 rounded-xl"
-                                    disabled={financialLoading}
-                                >
-                                    Cancelar
-                                </button>
-                                <button
-                                    onClick={handleCompleteMilestone}
-                                    className="flex-1 py-2.5 bg-green-600 text-white font-bold rounded-xl hover:bg-green-700 shadow-lg disabled:opacity-50 disabled:cursor-not-allowed"
-                                    disabled={financialLoading || !completionNote.trim()}
-                                >
-                                    {financialLoading ? (
-                                        <span className="flex items-center justify-center gap-2">
-                                            <span className="material-symbols-outlined animate-spin text-sm">sync</span>
-                                            Procesando...
-                                        </span>
-                                    ) : (
-                                        'Confirmar Completado'
-                                    )}
-                                </button>
                             </div>
                         </div>
                     </div>
-                </div>
-            )}
-
-            {/* Request Payment Modal */}
-            {showPaymentRequestModal && selectedMilestone && (
-                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
-                    <div className="bg-white rounded-2xl w-full max-w-md shadow-2xl animate-in zoom-in-95">
-                        <div className="p-6">
-                            <div className="text-center mb-6">
-                                <div className="w-16 h-16 bg-blue-100 rounded-full flex items-center justify-center mx-auto mb-4">
-                                    <span className="material-symbols-outlined text-3xl text-blue-600">payments</span>
-                                </div>
-                                <h3 className="text-2xl font-bold text-gray-900 mb-2">Solicitar Pago</h3>
-                                <p className="text-gray-600 text-sm mb-4">
-                                    Hito: <span className="font-bold">{selectedMilestone.title}</span>
-                                </p>
-                                <div className="bg-blue-50 border-2 border-blue-200 rounded-xl p-4">
-                                    <p className="text-xs text-blue-600 font-bold uppercase mb-1">Monto a Solicitar</p>
-                                    <p className="text-3xl font-black text-gray-900">${selectedMilestone.amount.toLocaleString()}</p>
-                                </div>
-                            </div>
-
-                            <div className="mb-6">
-                                <label className="block text-sm font-bold text-gray-700 mb-2">
-                                    Nota Opcional
-                                </label>
-                                <textarea
-                                    className="w-full p-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none resize-none h-24"
-                                    placeholder="Añade información adicional para el cliente (opcional)..."
-                                    value={paymentNote}
-                                    onChange={(e) => setPaymentNote(e.target.value)}
-                                    disabled={financialLoading}
-                                />
-                            </div>
-
-                            <div className="flex gap-3">
-                                <button
-                                    onClick={() => {
-                                        setShowPaymentRequestModal(false);
-                                        setSelectedMilestone(null);
-                                        setPaymentNote('');
-                                    }}
-                                    className="flex-1 py-2.5 text-gray-600 font-bold hover:bg-gray-100 rounded-xl"
-                                    disabled={financialLoading}
-                                >
-                                    Cancelar
-                                </button>
-                                <button
-                                    onClick={handleRequestPayment}
-                                    className="flex-1 py-2.5 bg-blue-600 text-white font-bold rounded-xl hover:bg-blue-700 shadow-lg disabled:opacity-50 disabled:cursor-not-allowed"
-                                    disabled={financialLoading}
-                                >
-                                    {financialLoading ? (
-                                        <span className="flex items-center justify-center gap-2">
-                                            <span className="material-symbols-outlined animate-spin text-sm">sync</span>
-                                            Enviando...
-                                        </span>
-                                    ) : (
-                                        'Enviar Solicitud'
-                                    )}
-                                </button>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            )}
+                )
+            }
         </div>
     );
 });

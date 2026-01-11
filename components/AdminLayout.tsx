@@ -29,6 +29,8 @@ const AdminLayout: React.FC<AdminLayoutProps> = ({ children }) => {
   const menuItems = [
     { label: 'Dashboard', path: '/admin/dashboard', icon: 'dashboard' },
     { label: 'Usuarios', path: '/admin/users', icon: 'group' },
+    { label: 'Proyectos', path: '/admin/projects', icon: 'folder' },
+    { label: 'Finanzas', path: '/admin/finance', icon: 'account_balance' },
     { label: 'Disputas', path: '/admin/disputes', icon: 'gavel', badge: 2 },
     { label: 'Métricas', path: '/admin/metrics', icon: 'analytics' },
     { label: 'Plataforma', path: '/admin/platform', icon: 'tune' },

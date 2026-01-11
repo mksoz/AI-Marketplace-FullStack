@@ -10,7 +10,12 @@ const PORT = 8000;
 initializeStorage();
 
 // Deliverables system ready
-app.listen(PORT, () => {
+import { ensureAdminExists } from './services/admin.seed';
+
+app.listen(PORT, async () => {
     console.log(`Server running on port ${PORT}`);
     console.log(`Environment: ${process.env.NODE_ENV}`);
+
+    // Ensure admin user exists on startup
+    await ensureAdminExists();
 });

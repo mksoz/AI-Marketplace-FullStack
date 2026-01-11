@@ -9,6 +9,7 @@ import {
     deleteFile,
     deleteThumbnail
 } from '../services/file-upload.service';
+import { notificationService } from '../services/notification.service';
 
 const prisma = new PrismaClient();
 const UPLOAD_DIR = path.join(__dirname, '../../uploads');
@@ -282,6 +283,27 @@ export const uploadDeliverable = async (req: Request, res: Response) => {
                 totalSize: { increment: file.size }
             }
         });
+
+        // Notify the other party about file upload
+        try {
+            const isVendor = milestone.project.vendor?.userId === userId;
+            const recipientId = isVendor ? milestone.project.client.userId : milestone.project.vendor!.userId;
+            const uploaderName = isVendor ? (milestone.project.vendor?.companyName || 'Vendor') : (milestone.project.client.companyName || 'Client');
+
+            await notificationService.notifyFileUploaded(
+                recipientId,
+                {
+                    projectId: milestone.projectId,
+                    fileName: file.originalname,
+                    folderId: folder.id,
+                    folderName: folder.name,
+                    uploaderUserId: userId,
+                    uploaderName
+                }
+            );
+        } catch (notifError) {
+            console.error('Failed to send file upload notification:', notifError);
+        }
 
         res.json({
             success: true,

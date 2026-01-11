@@ -160,26 +160,40 @@ const MilestoneFolderGrid: React.FC<MilestoneFolderGridProps> = ({
                 <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
                     {sortedFolders.map(folder => {
                         const milestone = milestones.find(m => m.id === folder.milestoneId);
-                        const isUnlocked = folder.status === 'UNLOCKED';
+                        const isBackendUnlocked = folder.status === 'UNLOCKED';
+
+                        // Permission Logic
+                        const isReviewing = milestone?.status === 'READY_FOR_REVIEW' ||
+                            milestone?.status === 'CHANGES_REQUESTED' ||
+                            milestone?.status === 'IN_DISPUTE' ||
+                            (milestone?.paymentRequest?.status === 'PENDING');
+
+                        const isCompleted = milestone?.status === 'COMPLETED' || milestone?.status === 'PAID';
+
+                        // Client Visibility: Can enter if Unlocked, Completed, or in Review
+                        const canView = isVendor || isBackendUnlocked || isCompleted || isReviewing;
+
+                        // Client Download: Strictly only if Unlocked or Completed (Paid)
+                        const canDownload = isVendor || isBackendUnlocked || isCompleted;
 
                         return (
                             <div
                                 key={folder.id}
                                 className={`
                                     relative group rounded-xl border p-4 transition-all
-                                    ${getStatusColor(folder.status)}
-                                    ${isUnlocked || isVendor ? 'cursor-pointer hover:shadow-md hover:-translate-y-1' : 'opacity-75 cursor-not-allowed'}
+                                    ${canView ? 'border-green-200 bg-green-50 hover:bg-green-100 hover:border-green-300' : 'border-amber-200 bg-amber-50 hover:bg-amber-100 hover:border-amber-300'}
+                                    ${canView ? 'cursor-pointer hover:shadow-md hover:-translate-y-1' : 'opacity-75 cursor-not-allowed'}
                                 `}
                                 onClick={() => {
-                                    if (isUnlocked || isVendor) {
+                                    if (canView) {
                                         onSelectFolder(folder, milestone);
                                     }
                                 }}
                             >
                                 {/* Lock Badge */}
-                                <div className={`absolute -top-2 -right-2 ${isUnlocked ? 'bg-green-500' : 'bg-amber-500'} text-white rounded-full p-1 shadow-md z-10`}>
+                                <div className={`absolute -top-2 -right-2 ${canDownload ? 'bg-green-500' : (canView ? 'bg-blue-500' : 'bg-amber-500')} text-white rounded-full p-1 shadow-md z-10`}>
                                     <span className="material-symbols-outlined text-sm block">
-                                        {isUnlocked ? 'lock_open' : 'lock'}
+                                        {isReviewing ? 'visibility' : (canDownload ? 'lock_open' : (canView ? 'visibility' : 'lock'))}
                                     </span>
                                 </div>
 
@@ -210,7 +224,7 @@ const MilestoneFolderGrid: React.FC<MilestoneFolderGridProps> = ({
                                 )}
 
                                 <div className="flex items-center justify-between mb-3">
-                                    <span className={`material-symbols-outlined text-4xl ${isUnlocked ? 'text-green-600' : 'text-amber-600'}`}>
+                                    <span className={`material-symbols-outlined text-4xl ${canView ? 'text-green-600' : 'text-amber-600'}`}>
                                         folder
                                     </span>
                                     {milestone && (
@@ -228,8 +242,8 @@ const MilestoneFolderGrid: React.FC<MilestoneFolderGridProps> = ({
                                     <span>{folder.fileCount || 0} archivos</span>
                                 </div>
 
-                                {/* Download Button - Minimalist */}
-                                {(isUnlocked || isVendor) && (
+                                {/* Download Button - Strictly Controlled */}
+                                {canDownload && (
                                     <button
                                         onClick={async (e) => {
                                             e.stopPropagation();
