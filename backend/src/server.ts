@@ -12,10 +12,24 @@ initializeStorage();
 // Deliverables system ready
 import { ensureAdminExists } from './services/admin.seed';
 
-app.listen(PORT, async () => {
-    console.log(`Server running on port ${PORT}`);
-    console.log(`Environment: ${process.env.NODE_ENV}`);
+// Ensure admin user exists on startup
+const startServer = async () => {
+    try {
+        await ensureAdminExists();
 
-    // Ensure admin user exists on startup
-    await ensureAdminExists();
-});
+        // Only listen on port if not in Vercel (local dev)
+        // Vercel sets VERCEL=1 or we can check NODE_ENV
+        if (process.env.NODE_ENV !== 'production') {
+            app.listen(PORT, () => {
+                console.log(`Server running on port ${PORT}`);
+                console.log(`Environment: ${process.env.NODE_ENV}`);
+            });
+        }
+    } catch (error) {
+        console.error('Failed to start server:', error);
+    }
+};
+
+startServer();
+
+export default app;
