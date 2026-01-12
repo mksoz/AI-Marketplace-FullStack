@@ -1,6 +1,7 @@
 import React, { useState, useEffect, forwardRef, useImperativeHandle } from 'react';
 import api from '../services/api';
 import { useToast } from '../contexts/ToastContext';
+import CountdownTimer from './CountdownTimer';
 
 interface Milestone {
     id: string;
@@ -333,7 +334,16 @@ const VendorRoadmapEditor = forwardRef(({ project, isEditing, onSave, onCancel }
                                                 'bg-gray-50 border-gray-200 border-dashed'}
                                 `}>
                                 {isCompleted && <div className="absolute top-0 right-0 bg-green-500 text-white text-xs font-bold px-3 py-1 rounded-bl-xl">COMPLETADO</div>}
-                                {isReviewing && <div className="absolute top-0 right-0 bg-amber-500 text-white text-xs font-bold px-3 py-1 rounded-bl-xl">EN REVISIÓN</div>}
+                                {isReviewing && (
+                                    <div className="absolute top-0 right-0 flex items-center">
+                                        {milestone.reviewDeadline && (
+                                            <div className="mr-2">
+                                                <CountdownTimer targetDate={milestone.reviewDeadline} size="sm" showIcon={false} />
+                                            </div>
+                                        )}
+                                        <div className="bg-amber-500 text-white text-xs font-bold px-3 py-1 rounded-bl-xl">EN REVISIÓN</div>
+                                    </div>
+                                )}
                                 {isDisputed && <div className="absolute top-0 right-0 bg-red-500 text-white text-xs font-bold px-3 py-1 rounded-bl-xl">EN DISPUTA</div>}
                                 {isInProgress && <div className="absolute top-0 right-0 bg-primary text-white text-xs font-bold px-3 py-1 rounded-bl-xl">EN PROGRESO</div>}
 

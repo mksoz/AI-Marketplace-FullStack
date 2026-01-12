@@ -469,7 +469,15 @@ export const setupProject = async (req: Request, res: Response) => {
             console.error('Failed to send roadmap update notification:', notifError);
         }
 
-        res.json(updated);
+        // Return the full project with milestones to the frontend
+        const finalProject = await prisma.project.findUnique({
+            where: { id },
+            include: {
+                milestones: { orderBy: { order: 'asc' } }
+            }
+        });
+
+        res.json(finalProject);
 
     } catch (error) {
         console.error("Error setting up project:", error);

@@ -445,3 +445,80 @@ export const openDispute = async (req: Request, res: Response) => {
         res.status(500).json({ message: 'Error opening dispute' });
     }
 };
+// POST /api/milestones/:id/complete
+// Vendor completa hito (sin pago o ya pagado)
+export const completeMilestone = async (req: Request, res: Response) => {
+    try {
+        const { id } = req.params;
+        const { completionNote } = req.body;
+        const user = req.user;
+
+        // Verificar que es vendor
+        if (!user || user.role !== 'VENDOR') {
+            return res.status(403).json({ message: 'Only vendors can complete milestones' });
+        }
+
+        const milestone = await prisma.milestone.findUnique({
+            where: { id },
+            include: { project: { include: { vendor: true, client: true } } }
+        });
+
+        if (!milestone) return res.status(404).json({ message: 'Milestone not found' });
+
+        // Verificar propiedad
+        if (!milestone.project.vendor || milestone.project.vendor.userId !== user.userId) {
+            return res.status(403).json({ message: 'Not authorized' });
+        }
+
+        // Logic check:
+        // 1. If amount sent is > 0, it generally requires payment flow (requestPayment).
+        //    Exception: If it's already marked isPaid=true (maybe externally?) but status not Completed? 
+        //    (Unlikely with current flow, but safe to allow if paid)
+        // 2. If amount == 0, can complete directly.
+
+        const needsPayment = milestone.amount > 0;
+        const isPaid = milestone.isPaid;
+
+        if (needsPayment && !isPaid) {
+            return res.status(400).json({ message: 'Cannot complete a paid milestone without payment approval. Use Request Payment.' });
+        }
+
+        const updated = await prisma.milestone.update({
+            where: { id },
+            data: {
+                status: 'COMPLETED',
+                completionNote: completionNote || '',
+                completedAt: new Date(),
+                isPaid: true // If amount is 0, it's effectively paid. If amount > 0, it was already paid.
+            }
+        });
+
+        // Notify client
+        try {
+            if (milestone.project.client) {
+                const message = completionNote
+                    ? `El vendor ha marcado el hito "${updated.title}" como completado. Nota: "${completionNote}"`
+                    : `El vendor ha marcado el hito "${updated.title}" como completado.`;
+
+                await prisma.notification.create({
+                    data: {
+                        userId: milestone.project.client.userId,
+                        title: '✅ Hito Completado',
+                        message,
+                        type: 'MILESTONE_COMPLETED',
+                        entityId: updated.projectId,
+                        entityType: 'project'
+                    }
+                });
+            }
+        } catch (notifError) {
+            console.error('[CompleteMilestone] Failed to send notification:', notifError);
+        }
+
+        res.json({ success: true, milestone: updated });
+
+    } catch (error) {
+        console.error('[CompleteMilestone] Error:', error);
+        res.status(500).json({ message: 'Error completing milestone' });
+    }
+};

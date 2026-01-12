@@ -127,8 +127,10 @@ export const getMilestoneDeliverables = async (req: Request, res: Response) => {
             });
         }
 
-        // Client: access based on status
-        if (folder.status === 'UNLOCKED') {
+        // Client: access based on status or milestone payment
+        const isPaidOrCompleted = milestone.status === 'COMPLETED' || milestone.isPaid;
+
+        if (folder.status === 'UNLOCKED' || (isClient && isPaidOrCompleted)) {
             const filesWithUrls = folder.files.map((f: any) => ({
                 ...f,
                 fileSize: Number(f.fileSize),
@@ -155,7 +157,8 @@ export const getMilestoneDeliverables = async (req: Request, res: Response) => {
                 mimeType: f.mimeType,
                 uploadedAt: f.uploadedAt,
                 thumbnailUrl: f.thumbnailPath ? getThumbnailUrl(f.thumbnailPath) : null,
-                previewAvailable: f.previewAvailable
+                previewAvailable: f.previewAvailable,
+                subfolderId: f.subfolderId
             }));
 
             return res.json({
@@ -353,10 +356,13 @@ export const downloadFile = async (req: Request, res: Response) => {
             return res.status(404).json({ message: 'File not found' });
         }
 
-        const project = file.folder.milestone.project;
+        const milestone = file.folder.milestone;
+        const project = milestone.project;
         const isVendor = project.vendor?.userId === userId;
         const isClient = project.client.userId === userId;
-        const isUnlocked = file.folder.status === 'UNLOCKED';
+
+        const isPaidOrCompleted = milestone.status === 'COMPLETED' || milestone.isPaid;
+        const isUnlocked = file.folder.status === 'UNLOCKED' || isPaidOrCompleted;
 
         // Check permissions
         if (!isVendor && !(isClient && isUnlocked)) {
@@ -482,7 +488,8 @@ export const downloadAll = async (req: Request, res: Response) => {
             if (!folder) return res.status(404).json({ message: 'Folder not found' });
             if (folder.milestoneId !== milestoneId) return res.status(400).json({ message: 'Folder mismatch' });
 
-            if (isClient && folder.status !== 'UNLOCKED') {
+            const isPaidOrCompleted = milestone.status === 'COMPLETED' || milestone.isPaid;
+            if (isClient && folder.status !== 'UNLOCKED' && !isPaidOrCompleted) {
                 return res.status(403).json({ message: 'Folder is locked' });
             }
             targetFolders = [folder];
@@ -492,7 +499,8 @@ export const downloadAll = async (req: Request, res: Response) => {
                 where: { milestoneId }
             });
 
-            targetFolders = isClient
+            const isPaidOrCompleted = milestone.status === 'COMPLETED' || milestone.isPaid;
+            targetFolders = (isClient && !isPaidOrCompleted)
                 ? allFolders.filter(f => f.status === 'UNLOCKED')
                 : allFolders;
         }

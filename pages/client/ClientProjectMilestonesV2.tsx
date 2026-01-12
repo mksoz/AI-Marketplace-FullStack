@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import api from '../../services/api';
 import { useToast } from '../../contexts/ToastContext';
+import CountdownTimer from '../../components/CountdownTimer';
 
 interface Milestone {
     id: string;
@@ -312,21 +313,35 @@ const ClientProjectMilestones: React.FC<ClientProjectMilestonesProps> = ({ proje
                                                 ) : milestone.status === 'READY_FOR_REVIEW' ? (
                                                     // Review State
                                                     userRole === 'CLIENT' ? (
-                                                        <button
-                                                            onClick={() => {
-                                                                setSelectedMilestoneForReview(milestone);
-                                                                setReviewAction('INITIAL');
-                                                                setShowReviewModal(true);
-                                                            }}
-                                                            className="px-4 py-2 bg-blue-600 text-white text-sm font-bold rounded-lg hover:bg-blue-700 shadow-md flex items-center gap-2 animate-pulse"
-                                                        >
-                                                            <span className="material-symbols-outlined text-base">rate_review</span>
-                                                            Revisar Entregables
-                                                        </button>
+                                                        <>
+                                                            <button
+                                                                onClick={() => {
+                                                                    setSelectedMilestoneForReview(milestone);
+                                                                    setReviewAction('INITIAL');
+                                                                    setShowReviewModal(true);
+                                                                }}
+                                                                className="px-4 py-2 bg-blue-600 text-white text-sm font-bold rounded-lg hover:bg-blue-700 shadow-md flex items-center gap-2 animate-pulse"
+                                                            >
+                                                                <span className="material-symbols-outlined text-base">rate_review</span>
+                                                                Revisar Entregables
+                                                            </button>
+                                                            {milestone.reviewDeadline && (
+                                                                <div className="mt-2 flex justify-center">
+                                                                    <CountdownTimer targetDate={milestone.reviewDeadline} size="sm" />
+                                                                </div>
+                                                            )}
+                                                        </>
                                                     ) : (
                                                         <>
                                                             <span className="block font-bold text-gray-900">${milestone.amount.toLocaleString()} USD</span>
-                                                            <span className="text-xs text-blue-600 font-bold">En revisión por cliente</span>
+                                                            <div className="flex flex-col">
+                                                                <span className="text-xs text-blue-600 font-bold">En revisión por cliente</span>
+                                                                {milestone.reviewDeadline && (
+                                                                    <div className="mt-1">
+                                                                        <CountdownTimer targetDate={milestone.reviewDeadline} size="sm" showIcon={true} />
+                                                                    </div>
+                                                                )}
+                                                            </div>
                                                         </>
                                                     )
                                                 ) : (
@@ -631,6 +646,12 @@ const ClientProjectMilestones: React.FC<ClientProjectMilestonesProps> = ({ proje
                                         <p className="text-sm text-blue-800">
                                             <span className="font-bold">Nota:</span> Al aprobar los entregables, se liberarán automáticamente los fondos del hito (${selectedMilestoneForReview.amount.toLocaleString()}) al vendor.
                                         </p>
+                                        {selectedMilestoneForReview.reviewDeadline && (
+                                            <div className="mt-2 flex items-center gap-2">
+                                                <span className="text-xs font-bold text-gray-500">Aprobación automática en:</span>
+                                                <CountdownTimer targetDate={selectedMilestoneForReview.reviewDeadline} size="sm" />
+                                            </div>
+                                        )}
                                     </div>
                                     <div className="grid grid-cols-2 gap-4">
                                         <button

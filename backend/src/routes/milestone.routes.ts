@@ -5,7 +5,8 @@ import {
     requestPayment,
     approveMilestone,
     rejectMilestone,
-    openDispute
+    openDispute,
+    completeMilestone
 } from '../controllers/milestone.controller';
 
 const router = Router();
@@ -28,5 +29,8 @@ router.post('/:id/reject', rejectMilestone);
 
 // Vendor: Open dispute (after 3+ rejections)
 router.post('/:id/open-dispute', openDispute);
+
+// Vendor: Mark as complete (for 0 amount or manually)
+router.post('/:id/complete', completeMilestone);
 
 export default router;

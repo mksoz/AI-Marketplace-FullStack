@@ -10,21 +10,33 @@ async function main() {
     console.log("Cleaning up database...");
 
     // Clean up everything
+    // Clean up everything - Reverse dependency order
     await prisma.deliverableReview.deleteMany({});
+    await prisma.paymentRequest.deleteMany({}); // Added
+    await prisma.projectFile.deleteMany({});
+    await prisma.deliverableFolder.deleteMany({});
+    await prisma.projectFolder.deleteMany({});
+
     await prisma.notification.deleteMany({});
     await prisma.message.deleteMany({});
     await prisma.conversation.deleteMany({});
-    await prisma.milestone.deleteMany({});
+
     await prisma.contractVersion.deleteMany({});
     await prisma.contract.deleteMany({});
     await prisma.incident.deleteMany({});
-    await prisma.projectFile.deleteMany({});
-    await prisma.projectFolder.deleteMany({});
-    await prisma.deliverableFolder.deleteMany({});
     await prisma.review.deleteMany({});
     await prisma.proposal.deleteMany({});
+
+    await prisma.milestone.deleteMany({});
     await prisma.project.deleteMany({});
+
     await prisma.requirementTemplate.deleteMany({});
+
+    // Accounts before Profiles
+    await prisma.savedVendor.deleteMany({});
+    await prisma.clientAccount.deleteMany({});
+    await prisma.vendorAccount.deleteMany({});
+
     await prisma.adminProfile.deleteMany({});
     await prisma.vendorProfile.deleteMany({});
     await prisma.clientProfile.deleteMany({});

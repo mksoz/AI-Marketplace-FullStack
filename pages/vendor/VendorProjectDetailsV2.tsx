@@ -252,7 +252,7 @@ const VendorProjectDetailsV2: React.FC = () => {
                                                         console.log('Updating roadmap:', newMilestones, 'Note:', note);
 
                                                         // Make API call to persist changes
-                                                        await api.post(`/projects/${project.id}/setup`, {
+                                                        const response = await api.post(`/projects/${project.id}/setup`, {
                                                             milestones: newMilestones,
                                                             startDate: project.startDate,
                                                             endDate: project.endDate,
@@ -260,8 +260,8 @@ const VendorProjectDetailsV2: React.FC = () => {
                                                             repoName: project.repoName
                                                         });
 
-                                                        // Update local state after successful API call
-                                                        setProject({ ...project, milestones: newMilestones });
+                                                        // Update local state with SERVER data (containing real IDs)
+                                                        setProject(response.data);
                                                         setIsRoadmapEditing(false);
 
                                                         // Optionally send notification to client if note provided
