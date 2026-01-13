@@ -379,7 +379,7 @@ model Project {
   escrow     ProjectEscrow?
 
   // Admin Relations
-  dispute Dispute?
+  disputes Dispute[]
 }
 
 model ProjectFolder {
@@ -433,6 +433,7 @@ model Milestone {
   // Approval Workflow
   submittedAt     DateTime?
   reviewDeadline  DateTime? // 7 days from submittedAt for auto-approval
+  vendorNote      String?   @db.Text // Vendor's message when submitting deliverables
   reviews         DeliverableReview[]
 }
 
@@ -692,6 +693,7 @@ enum NotificationType {
   REVIEW_REQUESTED
   CHANGES_REQUESTED
   DISPUTE_OPENED
+  DISPUTE_RESOLVED // When dispute is resolved or cancelled
 }
 
 enum IncidentStatus {
@@ -708,6 +710,14 @@ enum IncidentPriority {
   CRITICAL
 }
 
+
+enum IncidentType {
+  BUG
+  CHANGE_REQUEST
+  SUPPORT
+  DISPUTE
+}
+
 model Incident {
   id        String  @id @default(uuid())
   projectId String
@@ -718,6 +728,7 @@ model Incident {
 
   title       String
   description String
+  type        IncidentType     @default(BUG)
   status      IncidentStatus   @default(OPEN)
   priority    IncidentPriority @default(MEDIUM)
 
@@ -726,6 +737,7 @@ model Incident {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 }
+
 
 model Notification {
   id     String @id @default(uuid())
@@ -1087,8 +1099,10 @@ enum AdminActionType {
 
 enum DisputeStatus {
   OPEN
-  INVESTIGATING
+  IN_PROGRESS // When admin starts reviewing
   RESOLVED
+  INVESTIGATING
+  CANCELLED // When vendor cancels the dispute
 }
 
 enum DisputeResolutionType {
@@ -1166,8 +1180,13 @@ model AdminAction {
 // --- Dispute Resolution System ---
 model Dispute {
   id        String  @id @default(uuid())
-  projectId String  @unique
+  projectId String
   project   Project @relation(fields: [projectId], references: [id])
+
+  // Milestone specific dispute
+  milestoneId    String
+  milestoneTitle String
+  milestoneAmount Decimal @db.Decimal(10, 2)
 
   // Parties involved
   plaintiffId String // Client or Vendor user ID
@@ -1177,10 +1196,18 @@ model Dispute {
   amount       Decimal @db.Decimal(10, 2)
   escrowAmount Decimal @db.Decimal(10, 2)
 
-  // Evidence
-  reason         String  @db.Text
-  clientEvidence String? @db.Text
-  vendorEvidence String? @db.Text
+  // Vendor submission
+  vendorComment    String   @db.Text
+  vendorSubmittedAt DateTime
+
+  // Auto-collected evidence (stored as JSON for flexibility)
+  proposalData       Json? // Original proposal data
+  contractData       Json? // Signed contract data
+  reviewHistory      Json  // Complete review history with comments
+  deliverableFolders Json  // Deliverable folders and files info
+
+  // Evidence attachments
+  evidenceFiles DisputeEvidence[]
 
   // Status & Resolution
   status          DisputeStatus          @default(OPEN)
@@ -1205,8 +1232,30 @@ model Dispute {
 
   @@index([status])
   @@index([projectId])
+  @@index([milestoneId])
   @@index([plaintiffId])
   @@index([defendantId])
+}
+
+// --- Dispute Evidence Files ---
+model DisputeEvidence {
+  id        String  @id @default(uuid())
+  disputeId String
+  dispute   Dispute @relation(fields: [disputeId], references: [id], onDelete: Cascade)
+
+  // File info
+  filename     String
+  originalName String
+  fileSize     BigInt
+  mimeType     String
+  storagePath  String // disputes/disputeId/filename
+
+  // Metadata
+  uploadedBy  String // Always vendor who opened dispute
+  description String? // Optional description from vendor
+  uploadedAt  DateTime @default(now())
+
+  @@index([disputeId])
 }
 
 // --- Vendor Competitive Reports ---

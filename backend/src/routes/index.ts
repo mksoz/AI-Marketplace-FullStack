@@ -14,6 +14,7 @@ import subfolderRoutes from './subfolder.routes';
 import protectedFolderRoutes from './protected-folder.routes';
 import calendarRoutes from './calendar.routes';
 import adminRoutes from './admin.routes';
+import disputeRoutes from './dispute.routes';
 // import escrowRoutes from './escrow.routes'; // Removed
 
 const router = Router();
@@ -33,6 +34,7 @@ router.use('/deliverables', subfolderRoutes);
 router.use('/protected-folders', protectedFolderRoutes);
 router.use('/calendar', calendarRoutes);
 router.use('/admin', adminRoutes);
+router.use('/disputes', disputeRoutes);
 // router.use('/escrow', escrowRoutes); // Removed - not needed for Phase 1
 
 export default router;

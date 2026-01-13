@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import api from '../../services/api';
 import { useToast } from '../../contexts/ToastContext';
 import CountdownTimer from '../../components/CountdownTimer';
+import OpenDisputeModal from '../../components/disputes/OpenDisputeModal';
 
 interface Milestone {
     id: string;
@@ -95,6 +96,10 @@ const ClientProjectMilestones: React.FC<ClientProjectMilestonesProps> = ({ proje
     const [showCompleteModal, setShowCompleteModal] = useState(false);
     const [selectedActionMilestone, setSelectedActionMilestone] = useState<Milestone | null>(null);
     const [actionNote, setActionNote] = useState('');
+
+    // Dispute State
+    const [showDisputeModal, setShowDisputeModal] = useState(false);
+    const [selectedDisputeMilestone, setSelectedDisputeMilestone] = useState<Milestone | null>(null);
 
     // Vendor Handlers
     const handleStartMilestone = async (id: string) => {
@@ -369,17 +374,34 @@ const ClientProjectMilestones: React.FC<ClientProjectMilestonesProps> = ({ proje
 
                                                             // 1.5. Re-Submit Logic (Changes Requested)
                                                             if (milestone.status === 'CHANGES_REQUESTED') {
+                                                                const rejectionCount = milestone.reviews?.filter(r => r.status === 'REJECTED').length || 0;
+                                                                const canOpenDispute = rejectionCount >= 3;
+
                                                                 return (
-                                                                    <button
-                                                                        onClick={() => {
-                                                                            setSelectedActionMilestone(milestone);
-                                                                            setShowPaymentRequestModal(true);
-                                                                        }}
-                                                                        className="px-4 py-2 bg-gradient-to-r from-orange-500 to-orange-600 text-white text-sm font-bold rounded-lg hover:from-orange-600 hover:to-orange-700 shadow-md hover:shadow-lg transition-all flex items-center gap-2"
-                                                                    >
-                                                                        <span className="material-symbols-outlined text-base">rate_review</span>
-                                                                        Solicitar Revisión
-                                                                    </button>
+                                                                    <div className="flex flex-col gap-2">
+                                                                        <button
+                                                                            onClick={() => {
+                                                                                setSelectedActionMilestone(milestone);
+                                                                                setShowPaymentRequestModal(true);
+                                                                            }}
+                                                                            className="px-4 py-2 bg-gradient-to-r from-orange-500 to-orange-600 text-white text-sm font-bold rounded-lg hover:from-orange-600 hover:to-orange-700 shadow-md hover:shadow-lg transition-all flex items-center gap-2"
+                                                                        >
+                                                                            <span className="material-symbols-outlined text-base">rate_review</span>
+                                                                            Solicitar Revisión
+                                                                        </button>
+                                                                        {canOpenDispute && (
+                                                                            <button
+                                                                                onClick={() => {
+                                                                                    setSelectedDisputeMilestone(milestone);
+                                                                                    setShowDisputeModal(true);
+                                                                                }}
+                                                                                className="px-4 py-2 bg-red-600 text-white text-sm font-bold rounded-lg hover:bg-red-700 shadow-md flex items-center gap-2 animate-pulse"
+                                                                            >
+                                                                                <span className="material-symbols-outlined text-base">gavel</span>
+                                                                                Abrir Disputa ({rejectionCount} rechazos)
+                                                                            </button>
+                                                                        )}
+                                                                    </div>
                                                                 );
                                                             }
 
@@ -869,6 +891,22 @@ const ClientProjectMilestones: React.FC<ClientProjectMilestonesProps> = ({ proje
                     </div>
                 )
             }
+
+            {/* Open Dispute Modal */}
+            {showDisputeModal && selectedDisputeMilestone && (
+                <OpenDisputeModal
+                    show={showDisputeModal}
+                    onClose={() => {
+                        setShowDisputeModal(false);
+                        setSelectedDisputeMilestone(null);
+                    }}
+                    milestone={selectedDisputeMilestone}
+                    onSuccess={() => {
+                        showToast('Disputa abierta correctamente. Los administradores han sido notificados.', 'success');
+                        if (onUpdate) onUpdate();
+                    }}
+                />
+            )}
         </>
     );
 };

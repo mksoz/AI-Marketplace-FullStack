@@ -143,7 +143,7 @@ export const getProject = async (req: Request, res: Response) => {
                 incidents: {
                     orderBy: { createdAt: 'desc' }
                 },
-                dispute: true,
+                disputes: true,
                 conversation: {
                     include: {
                         messages: {

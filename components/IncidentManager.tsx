@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import DisputeDetailModal from './disputes/DisputeDetailModal';
 
 interface Incident {
     id: string;
@@ -7,10 +8,11 @@ interface Incident {
     priority: 'LOW' | 'MEDIUM' | 'HIGH' | 'CRITICAL';
     status: 'OPEN' | 'IN_PROGRESS' | 'RESOLVED';
     createdAt: string;
-    type: 'BUG' | 'CHANGE_REQUEST' | 'SUPPORT';
+    type: 'BUG' | 'CHANGE_REQUEST' | 'SUPPORT' | 'DISPUTE';
     reportedBy: string;
     resolution?: string;
     attachment?: string; // Attachment name
+    disputeId?: string; // ID of associated dispute if type is DISPUTE
 }
 
 interface IncidentManagerProps {
@@ -28,6 +30,7 @@ const IncidentManager: React.FC<IncidentManagerProps> = ({ incidents, userRole, 
     const [detailModal, setDetailModal] = useState<{ open: boolean, incident: Incident | null }>({ open: false, incident: null });
     const [confirmDeleteModal, setConfirmDeleteModal] = useState<{ open: boolean, incident: Incident | null }>({ open: false, incident: null });
     const [resolveModal, setResolveModal] = useState<{ open: boolean, incident: Incident | null }>({ open: false, incident: null });
+    const [disputeDetailModal, setDisputeDetailModal] = useState<{ open: boolean, disputeId: string | null }>({ open: false, disputeId: null });
 
     // Forms
     const [newIncident, setNewIncident] = useState({
@@ -38,6 +41,14 @@ const IncidentManager: React.FC<IncidentManagerProps> = ({ incidents, userRole, 
         file: null as File | null
     });
     const [resolutionText, setResolutionText] = useState('');
+
+    // Helper to parse dispute ID from resolution field
+    const parseDisputeId = (incident: Incident): string | null => {
+        if (incident.type !== 'DISPUTE' || !incident.resolution) return null;
+        // Match DISPUTE_ID: followed by UUID, optionally followed by additional text
+        const match = incident.resolution.match(/^DISPUTE_ID:([a-f0-9-]+)/);
+        return match ? match[1] : null;
+    };
 
     const columns = [
         { id: 'OPEN', label: 'Abiertas', color: 'bg-red-50 border-red-200', text: 'text-red-700' },
@@ -105,53 +116,128 @@ const IncidentManager: React.FC<IncidentManagerProps> = ({ incidents, userRole, 
 
                                 {/* Cards */}
                                 <div className="p-3 space-y-3 flex-1 overflow-y-auto custom-scrollbar">
-                                    {colIncidents.map(inc => (
-                                        <div
-                                            key={inc.id}
-                                            onClick={() => setDetailModal({ open: true, incident: inc })}
-                                            className="bg-white p-4 rounded-xl border border-gray-200 shadow-sm hover:shadow-md transition-all cursor-pointer group relative hover:border-red-200"
-                                        >
-                                            <div className="flex justify-between items-center mb-2">
-                                                <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded border uppercase
+                                    {colIncidents.map(inc => {
+                                        const handleIncidentClick = () => {
+                                            // If it's a dispute, ALWAYS open the dispute detail modal
+                                            if (inc.type === 'DISPUTE') {
+                                                // Extract dispute ID from resolution field
+                                                let disputeId = parseDisputeId(inc);
+
+                                                // If parseDisputeId fails, try to get from incident.id or disputeId field
+                                                if (!disputeId && inc.disputeId) {
+                                                    disputeId = inc.disputeId;
+                                                }
+
+                                                // Log for debugging
+                                                console.log('[IncidentManager] Opening dispute modal:', {
+                                                    incidentId: inc.id,
+                                                    disputeId,
+                                                    resolution: inc.resolution
+                                                });
+
+                                                if (disputeId) {
+                                                    setDisputeDetailModal({ open: true, disputeId });
+                                                    return;
+                                                } else {
+                                                    console.error('[IncidentManager] Could not extract dispute ID from incident:', inc);
+                                                    alert('Error: No se pudo obtener el ID de la disputa');
+                                                    return;
+                                                }
+                                            }
+                                            // Otherwise, open the regular detail modal
+                                            setDetailModal({ open: true, incident: inc });
+                                        };
+
+                                        return (
+                                            <div
+                                                key={inc.id}
+                                                onClick={handleIncidentClick}
+                                                className="bg-white p-4 rounded-xl border border-gray-200 shadow-sm hover:shadow-md transition-all cursor-pointer group relative hover:border-red-200"
+                                            >
+                                                <div className="flex justify-between items-center mb-2">
+                                                    <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded border uppercase
                                                     ${inc.priority === 'CRITICAL' ? 'bg-red-100 text-red-800 border-red-200' :
-                                                        inc.priority === 'HIGH' ? 'bg-orange-100 text-orange-800 border-orange-200' :
-                                                            'bg-blue-50 text-blue-700 border-blue-100'}
+                                                            inc.priority === 'HIGH' ? 'bg-orange-100 text-orange-800 border-orange-200' :
+                                                                'bg-blue-50 text-blue-700 border-blue-100'}
                                                 `}>
-                                                    {inc.priority}
-                                                </span>
-                                                <span className="text-[10px] text-gray-400">{new Date(inc.createdAt).toLocaleDateString()}</span>
+                                                        {inc.priority}
+                                                    </span>
+                                                    <span className="text-[10px] text-gray-400">{new Date(inc.createdAt).toLocaleDateString()}</span>
+                                                </div>
+                                                <h5 className="font-bold text-gray-900 text-sm mb-1 truncate">{inc.title}</h5>
+                                                <p className="text-xs text-gray-500 line-clamp-2 mb-2">{inc.description}</p>
+
+                                                {inc.attachment && (
+                                                    <div className="flex items-center gap-1 text-[10px] text-gray-400 bg-gray-50 px-2 py-1 rounded w-fit">
+                                                        <span className="material-symbols-outlined text-xs">attachment</span> {inc.attachment}
+                                                    </div>
+                                                )}
+
+                                                {/* Stop Propagation to prevent opening detail when clicking action buttons */}
+                                                {userRole === 'vendor' && inc.status !== 'RESOLVED' && inc.type !== 'DISPUTE' && (
+                                                    <div className="pt-3 mt-2 border-t border-gray-50 flex justify-end" onClick={e => e.stopPropagation()}>
+                                                        {inc.status === 'OPEN' ? (
+                                                            <button
+                                                                onClick={() => onStatusChange?.(inc.id, 'IN_PROGRESS')}
+                                                                className="text-xs font-bold text-amber-600 hover:bg-amber-50 px-2 py-1 rounded transition-colors"
+                                                            >
+                                                                Iniciar Revisión
+                                                            </button>
+                                                        ) : (
+                                                            <button
+                                                                onClick={() => setResolveModal({ open: true, incident: inc })}
+                                                                className="text-xs font-bold text-green-600 hover:bg-green-50 px-2 py-1 rounded transition-colors"
+                                                            >
+                                                                Marcar Resuelto
+                                                            </button>
+                                                        )}
+                                                    </div>
+                                                )}
+
+                                                {/* Dispute Actions and Badge */}
+                                                {inc.type === 'DISPUTE' && (
+                                                    <div className="pt-2 mt-2 border-t border-gray-50 space-y-2">
+                                                        {/* Show different badge based on status */}
+                                                        {inc.status === 'RESOLVED' ? (
+                                                            // Disputa cancelada (resolved)
+                                                            <span className="inline-flex items-center gap-1 px-2 py-1 bg-gray-100 text-gray-600 text-[10px] font-bold rounded">
+                                                                <span className="material-symbols-outlined text-xs">check_circle</span>
+                                                                DISPUTA CANCELADA
+                                                            </span>
+                                                        ) : (
+                                                            // Disputa en revisión (active)
+                                                            <span className="inline-flex items-center gap-1 px-2 py-1 bg-purple-50 text-purple-700 text-[10px] font-bold rounded">
+                                                                <span className="material-symbols-outlined text-xs">gavel</span>
+                                                                DISPUTA EN REVISIÓN
+                                                            </span>
+                                                        )}
+                                                        {/* Vendor can cancel dispute if OPEN or IN_PROGRESS */}
+                                                        {userRole === 'vendor' && inc.status !== 'RESOLVED' && (
+                                                            <div className="text-xs text-gray-500 italic">
+                                                                Solo admin puede resolver. Haz clic para ver detalles o cancelar.
+                                                            </div>
+                                                        )}
+                                                        {/* Client sees read-only message */}
+                                                        {userRole === 'client' && inc.status !== 'RESOLVED' && (
+                                                            <div className="text-xs text-gray-500 italic">
+                                                                En revisión por administración. Haz clic para ver detalles.
+                                                            </div>
+                                                        )}
+                                                        {/* If resolved, show cancellation reason */}
+                                                        {inc.status === 'RESOLVED' && (
+                                                            <div className="text-xs text-gray-500 italic">
+                                                                {inc.resolution?.includes('cliente aprobó')
+                                                                    ? 'Cancelada: El cliente aprobó los entregables'
+                                                                    : inc.resolution?.includes('vendor')
+                                                                        ? 'Cancelada por el vendor'
+                                                                        : 'Disputa cancelada'}
+                                                            </div>
+                                                        )}
+                                                    </div>
+                                                )}
                                             </div>
-                                            <h5 className="font-bold text-gray-900 text-sm mb-1 truncate">{inc.title}</h5>
-                                            <p className="text-xs text-gray-500 line-clamp-2 mb-2">{inc.description}</p>
-
-                                            {inc.attachment && (
-                                                <div className="flex items-center gap-1 text-[10px] text-gray-400 bg-gray-50 px-2 py-1 rounded w-fit">
-                                                    <span className="material-symbols-outlined text-xs">attachment</span> {inc.attachment}
-                                                </div>
-                                            )}
-
-                                            {/* Stop Propagation to prevent opening detail when clicking action buttons */}
-                                            {userRole === 'vendor' && inc.status !== 'RESOLVED' && (
-                                                <div className="pt-3 mt-2 border-t border-gray-50 flex justify-end" onClick={e => e.stopPropagation()}>
-                                                    {inc.status === 'OPEN' ? (
-                                                        <button
-                                                            onClick={() => onStatusChange?.(inc.id, 'IN_PROGRESS')}
-                                                            className="text-xs font-bold text-amber-600 hover:bg-amber-50 px-2 py-1 rounded transition-colors"
-                                                        >
-                                                            Iniciar Revisión
-                                                        </button>
-                                                    ) : (
-                                                        <button
-                                                            onClick={() => setResolveModal({ open: true, incident: inc })}
-                                                            className="text-xs font-bold text-green-600 hover:bg-green-50 px-2 py-1 rounded transition-colors"
-                                                        >
-                                                            Marcar Resuelto
-                                                        </button>
-                                                    )}
-                                                </div>
-                                            )}
-                                        </div>
-                                    ))}
+                                        );
+                                    })}
                                     {colIncidents.length === 0 && (
                                         <div className="text-center py-8 opacity-50">
                                             <p className="text-xs text-gray-400">Sin incidencias</p>
@@ -301,8 +387,10 @@ const IncidentManager: React.FC<IncidentManagerProps> = ({ incidents, userRole, 
                             )}
                         </div>
 
+
                         <div className="p-6 border-t border-gray-100 flex justify-between bg-gray-50/50">
-                            {userRole === 'client' && detailModal.incident.status !== 'RESOLVED' ? (
+                            {/* Clients can only delete regular incidents, NOT disputes */}
+                            {userRole === 'client' && detailModal.incident.status !== 'RESOLVED' && detailModal.incident.type !== 'DISPUTE' ? (
                                 <button
                                     onClick={() => setConfirmDeleteModal({ open: true, incident: detailModal.incident })}
                                     className="px-4 py-2 border border-red-200 text-red-600 font-bold text-sm rounded-lg hover:bg-red-50 flex items-center gap-2"
@@ -313,7 +401,7 @@ const IncidentManager: React.FC<IncidentManagerProps> = ({ incidents, userRole, 
                                 <div></div>
                             )}
 
-                            {userRole === 'vendor' && detailModal.incident.status !== 'RESOLVED' && (
+                            {userRole === 'vendor' && detailModal.incident.status !== 'RESOLVED' && detailModal.incident.type !== 'DISPUTE' && (
                                 <button
                                     onClick={() => { setDetailModal({ open: false, incident: null }); setResolveModal({ open: true, incident: detailModal.incident }); }}
                                     className="px-6 py-2 bg-green-600 text-white font-bold text-sm rounded-lg hover:bg-green-700 shadow-lg shadow-green-200"
@@ -381,6 +469,20 @@ const IncidentManager: React.FC<IncidentManagerProps> = ({ incidents, userRole, 
                         </div>
                     </div>
                 </div>
+            )}
+
+            {/* Dispute Detail Modal */}
+            {disputeDetailModal.open && disputeDetailModal.disputeId && (
+                <DisputeDetailModal
+                    disputeId={disputeDetailModal.disputeId}
+                    onClose={() => setDisputeDetailModal({ open: false, disputeId: null })}
+                    onDisputeCancelled={() => {
+                        // This will be called when the dispute is successfully cancelled
+                        // The parent component should refetch the incidents list
+                        setDisputeDetailModal({ open: false, disputeId: null });
+                        // Note: The parent component using IncidentManager should handle refetching the data
+                    }}
+                />
             )}
         </div>
     );
