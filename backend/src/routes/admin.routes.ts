@@ -63,10 +63,15 @@ router.post('/finance/accounts/:id/freeze', requirePermission('SUPER_ADMIN'), fi
 // ==========================================
 // DISPUTE ROUTES
 // ==========================================
+router.get('/disputes/stats', requirePermission('DISPUTE_RESOLUTION'), disputesController.getDisputeStats);
 router.get('/disputes', requirePermission('DISPUTE_RESOLUTION'), disputesController.getDisputes);
 router.get('/disputes/:id', requirePermission('DISPUTE_RESOLUTION'), disputesController.getDispute);
 router.post('/disputes/:id/analyze', requirePermission('DISPUTE_RESOLUTION'), disputesController.analyzeWithAI);
+router.put('/disputes/:id/review', requirePermission('DISPUTE_RESOLUTION'), disputesController.reviewDispute);
 router.post('/disputes/:id/resolve', requirePermission('DISPUTE_RESOLUTION'), disputesController.resolveDispute);
+router.patch('/disputes/:id/status', requirePermission('DISPUTE_RESOLUTION'), disputesController.updateDisputeStatus);
+
+
 
 // ==========================================
 // METRICS & REPORTS ROUTES

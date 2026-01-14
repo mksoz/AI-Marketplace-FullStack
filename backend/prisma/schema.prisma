@@ -733,6 +733,7 @@ model Incident {
   priority    IncidentPriority @default(MEDIUM)
 
   resolution String?
+  disputeId  String? // Reference to associated Dispute (if type is DISPUTE)
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt

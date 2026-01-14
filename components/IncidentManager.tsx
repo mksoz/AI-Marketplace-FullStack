@@ -120,18 +120,18 @@ const IncidentManager: React.FC<IncidentManagerProps> = ({ incidents, userRole, 
                                         const handleIncidentClick = () => {
                                             // If it's a dispute, ALWAYS open the dispute detail modal
                                             if (inc.type === 'DISPUTE') {
-                                                // Extract dispute ID from resolution field
-                                                let disputeId = parseDisputeId(inc);
+                                                // Priority 1: Use disputeId field (most reliable)
+                                                let disputeId = inc.disputeId;
 
-                                                // If parseDisputeId fails, try to get from incident.id or disputeId field
-                                                if (!disputeId && inc.disputeId) {
-                                                    disputeId = inc.disputeId;
+                                                // Priority 2: Parse from resolution field (fallback for legacy data)
+                                                if (!disputeId) {
+                                                    disputeId = parseDisputeId(inc);
                                                 }
 
-                                                // Log for debugging
                                                 console.log('[IncidentManager] Opening dispute modal:', {
                                                     incidentId: inc.id,
                                                     disputeId,
+                                                    hasDisputeIdField: !!inc.disputeId,
                                                     resolution: inc.resolution
                                                 });
 
@@ -140,7 +140,9 @@ const IncidentManager: React.FC<IncidentManagerProps> = ({ incidents, userRole, 
                                                     return;
                                                 } else {
                                                     console.error('[IncidentManager] Could not extract dispute ID from incident:', inc);
-                                                    alert('Error: No se pudo obtener el ID de la disputa');
+                                                    // Use toast notification instead of alert
+                                                    const { toast } = require('../utils/toast');
+                                                    toast.error('No se pudo abrir la disputa. Intenta nuevamente.');
                                                     return;
                                                 }
                                             }

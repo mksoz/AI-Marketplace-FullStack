@@ -630,6 +630,7 @@ export const openDispute = async (req: Request, res: Response) => {
                     type: 'DISPUTE',
                     status: 'OPEN',
                     priority: 'HIGH',
+                    disputeId: newDispute.id,
                     // Store dispute ID in resolution field temporarily for linking
                     resolution: `DISPUTE_ID:${newDispute.id}`
                 }
