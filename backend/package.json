@@ -35,7 +35,7 @@
     "multer": "^2.0.2",
     "node-ical": "^0.22.1",
     "sharp": "^0.34.5",
-    "uuid": "^13.0.0"
+    "uuid": "^9.0.1"
   },
   "devDependencies": {
     "@types/bcrypt": "^6.0.0",
