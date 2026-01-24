@@ -57,30 +57,20 @@ export const register = async (req: Request, res: Response) => {
 export const login = async (req: Request, res: Response) => {
     try {
         const { email, password } = req.body;
-        console.log(`[LOGIN ATTEMPT] Starting login for: ${email}`);
 
-        // DB Check
-        console.log('[LOGIN DEBUG] Querying user from DB...');
         const user = await prisma.user.findUnique({ where: { email } });
 
         if (!user) {
-            console.log(`[LOGIN FAIL] User not found: ${email}`);
             return res.status(401).json({ message: 'Invalid credentials' });
         }
-        console.log(`[LOGIN DEBUG] User found: ${user.id}, Role: ${user.role}`);
 
-        // Password Check
-        console.log('[LOGIN DEBUG] Verifying password...');
         const isValid = await comparePassword(password, user.password);
-        console.log(`[LOGIN CHECK] Password Valid: ${isValid}`);
 
         if (!isValid) {
-            console.log('[LOGIN FAIL] Invalid password');
             return res.status(401).json({ message: 'Invalid credentials' });
         }
 
         const token = generateToken({ userId: user.id, role: user.role, email: user.email });
-        console.log('[LOGIN SUCCESS] Token generated, sending response');
 
         res.json({
             message: 'Login successful',
@@ -136,7 +126,7 @@ export const updateMe = async (req: Request, res: Response) => {
             theme
         } = req.body;
 
-        console.log(`[UPDATE USER] ID: ${user.userId}, Body:`, req.body);
+
 
         const updateData: any = {};
         if (simulationMode !== undefined) updateData.simulationMode = simulationMode;

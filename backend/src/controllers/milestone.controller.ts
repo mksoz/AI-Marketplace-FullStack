@@ -148,7 +148,7 @@ export const requestPayment = async (req: Request, res: Response) => {
 export const approveMilestone = async (req: Request, res: Response) => {
     try {
         const { id } = req.params;
-        console.log(`[ApproveMilestone] Request received for ID: ${id}`);
+
         const user = req.user;
 
         // Verificar que es cliente
@@ -220,7 +220,7 @@ export const approveMilestone = async (req: Request, res: Response) => {
         });
 
         if (relatedDispute) {
-            console.log(`[ApproveMilestone] Auto-cancelling dispute ${relatedDispute.id}`);
+
 
             // Cancel the dispute
             await prisma.dispute.update({
@@ -309,7 +309,7 @@ export const approveMilestone = async (req: Request, res: Response) => {
 export const rejectMilestone = async (req: Request, res: Response) => {
     try {
         const { id } = req.params;
-        console.log(`[RejectMilestone] Request received for ID: ${id}`);
+
         const { comment } = req.body;
         const user = req.user;
 
@@ -333,7 +333,6 @@ export const rejectMilestone = async (req: Request, res: Response) => {
         });
 
         if (!milestone) {
-            console.log(`[RejectMilestone] Milestone not found: ${id}`);
             return res.status(404).json({ message: 'Milestone not found' });
         }
 
@@ -419,7 +418,6 @@ export const openDispute = async (req: Request, res: Response) => {
         const { vendorComment } = req.body;
         const user = req.user;
 
-        console.log(`[OpenDispute] Request received for milestone ID: ${id} by vendor: ${user?.userId}`);
 
         // Verificar que es vendor
         if (!user || user.role !== 'VENDOR') {
@@ -489,13 +487,11 @@ export const openDispute = async (req: Request, res: Response) => {
         });
 
         if (!milestone) {
-            console.log(`[OpenDispute] Milestone not found: ${id}`);
             return res.status(404).json({ message: 'Milestone not found' });
         }
 
         // Verificar propiedad
         if (!milestone.project.vendor || milestone.project.vendor.userId !== user.userId) {
-            console.log(`[OpenDispute] Not authorized: vendor mismatch`);
             return res.status(403).json({ message: 'Not authorized' });
         }
 
@@ -506,7 +502,6 @@ export const openDispute = async (req: Request, res: Response) => {
 
         // Contar rechazos (REJECTED)
         const rejectedReviews = milestone.reviews.filter(r => r.status === 'REJECTED');
-        console.log(`[OpenDispute] Rejection count: ${rejectedReviews.length}`);
 
         if (rejectedReviews.length < 3) {
             return res.status(400).json({
@@ -574,7 +569,6 @@ export const openDispute = async (req: Request, res: Response) => {
             }))
         }));
 
-        console.log(`[OpenDispute] Creating dispute for milestone: ${milestone.title}`);
 
         // Crear disputa en una transacción
         const dispute = await prisma.$transaction(async (tx) => {
@@ -639,14 +633,12 @@ export const openDispute = async (req: Request, res: Response) => {
             return newDispute;
         });
 
-        console.log(`[OpenDispute] Dispute created successfully: ${dispute.id}`);
 
         // Obtener todos los admins para notificar
         const admins = await prisma.user.findMany({
             where: { role: 'ADMIN' }
         });
 
-        console.log(`[OpenDispute] Notifying ${admins.length} administrators`);
 
         // Notificar a todos los admins
         const adminNotifications = admins.map(admin =>
@@ -860,7 +852,6 @@ export const cancelDispute = async (req: Request, res: Response) => {
         const { disputeId } = req.params;
         const user = req.user;
 
-        console.log(`[CancelDispute] Request received for dispute ID: ${disputeId} by user: ${user?.userId}`);
 
         // Verificar que es vendor
         if (!user || user.role !== 'VENDOR') {
@@ -897,7 +888,6 @@ export const cancelDispute = async (req: Request, res: Response) => {
             });
         }
 
-        console.log(`[CancelDispute] Cancelling dispute ${disputeId}`);
 
         // Actualizar disputa a CANCELLED
         const updatedDispute = await prisma.dispute.update({
