@@ -6,15 +6,17 @@ dotenv.config();
 
 const PORT = 8000;
 
-// Initialize file storage
-initializeStorage();
-
 // Deliverables system ready
 import { ensureAdminExists } from './services/admin.seed';
 
 // Ensure admin user exists on startup
 const startServer = async () => {
     try {
+        // Initialize file storage only in development
+        if (process.env.NODE_ENV !== 'production') {
+            await initializeStorage();
+        }
+
         await ensureAdminExists();
 
         // Only listen on port if not in Vercel (local dev)
